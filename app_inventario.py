@@ -192,43 +192,16 @@ elif seccion == "💰 Registrar Venta":
         st.warning("No hay productos registrados.")
 
 elif seccion == "📉 Gastos y Materiales":
-    st.header("📉 Control de Caja y Gastos")
-    
-    # 1. Traer datos de la tabla finanzas
-    try:
+    elif seccion == "📉 Gastos y Materiales":
+        st.header("📉 Control de Caja")
         res_f = supabase.table("finanzas").select("*").eq("id", 1).execute()
         if res_f.data:
             fin = res_f.data[0]
-            
-            # Mostrar métricas reales
-            c1, c2 = st.columns(2)
-            c1.metric("💰 Capital Reinversión", f"${fin['dinero_reinversion']:,.2f}")
-            c2.metric("🟢 Ganancia Libre (Tuya)", f"${fin['dinero_libre']:,.2f}")
-            
-            st.divider()
-            
-            # Formulario de gastos
-            with st.form("registro_gastos"):
-                fuente = st.radio("¿De dónde sale el dinero?", ["Cajón Reinversión", "Ganancia Libre"], horizontal=True)
-                motivo = st.text_input("¿En qué gastaste?")
-                monto_gasto = st.number_input("Cantidad gastada ($):", min_value=0.1)
-                
-                if st.form_submit_button("Aplicar Gasto"):
-                    col_update = "dinero_reinversion" if fuente == "Cajón Reinversión" else "dinero_libre"
-                    nuevo_valor = fin[col_update] - monto_gasto
-                    
-                    if nuevo_valor >= 0:
-                        supabase.table("finanzas").update({col_update: nuevo_valor}).eq("id", 1).execute()
-                        # Registrar en historial
-                        supabase.table("historial").insert({"tipo": "GASTO", "detalle": f"{motivo} ({fuente})", "cantidad": 0, "monto": monto_gasto}).execute()
-                        st.success("✅ Gasto registrado correctamente")
-                        st.rerun()
-                    else:
-                        st.error("❌ No hay suficiente dinero en ese cajón")
+            st.metric("Capital Reinversión", f"${fin['dinero_reinversion']:,.2f}")
+            st.metric("Ganancia Libre", f"${fin['dinero_libre']:,.2f}")
         else:
-            st.error("No se encontró el registro con ID 1 en la tabla 'finanzas'.")
-    except Exception as e:
-        st.error(f"Error de conexión: {e}")
+            st.error("No hay datos en la tabla finanzas")
+
 
 elif seccion == "📜 Historial Completo":
     st.header("📜 Historial de Movimientos")
