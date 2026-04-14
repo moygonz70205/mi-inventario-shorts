@@ -189,7 +189,7 @@ elif seccion == "💰 Registrar Venta":
             st.warning("Combinación no encontrada en el inventario.")
     else:
         st.warning("No hay productos registrados.")
-elif seccion == "📉 Gastos y Materiales":
+    elif seccion == "📉 Gastos y Materiales":
         st.header("📉 Control de Gastos")
         try:
             res_f = supabase.table("finanzas").select("*").eq("id", 1).execute()
@@ -216,7 +216,6 @@ elif seccion == "📉 Gastos y Materiales":
                             st.error("❌ Saldo insuficiente")
         except Exception as e:
             st.error(f"Error: {e}")
-
 elif seccion == "📜 Historial Completo":
     st.header("📜 Historial de Movimientos")
     
@@ -242,15 +241,14 @@ elif seccion == "📜 Historial Completo":
         st.dataframe(datos_filtrados, use_container_width=True)
     else:
         st.info("Aún no hay movimientos en el historial.")
-elif seccion == "📊 Reporte Semanal":
+    elif seccion == "📊 Reporte Semanal":
         st.header("📊 Resumen de Ventas")
         res = supabase.table("historial").select("*").eq("tipo", "VENTA").execute()
         if res.data:
             import pandas as pd
             df = pd.DataFrame(res.data)
             st.metric("Cobrado Total", f"${df['monto'].sum():,.2f}")
-            st.write("### Detalle")
-            st.dataframe(df[['created_at', 'detalle', 'monto']])
+            st.write("### Detalle de Movimientos")
+            st.dataframe(df[['created_at', 'detalle', 'monto']], use_container_width=True)
         else:
-            st.info("No hay ventas registradas.")
-
+            st.info("No hay ventas registradas todavía.")
