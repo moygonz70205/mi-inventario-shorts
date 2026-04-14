@@ -194,8 +194,8 @@ elif seccion == "📉 Gastos y Materiales":
     st.header("Control de Caja y Gastos")
 
     # Leemos el estado actual del dinero
-    res_f = supabase.table("finanzas").select("*").eq("id", 1).execute()
-    fin = res_f.data[0]
+    res = supabase.table("historial").select("*").eq("tipo", "VENTA").execute()
+    ventas = res.data
     
     # Mostramos tus saldos en tarjetas llamativas
     c1, c2 = st.columns(2)
