@@ -1,4 +1,3 @@
-st.write("¡ESTOY VIVO Y ESTA ES LA VERSIÓN NUEVA!")
 # ============================================================
 # NOTA PARA MOISÉS: CÓMO CORRER EL PROGRAMA
 # 1. Si marca error "File does not exist", usa el truco:
