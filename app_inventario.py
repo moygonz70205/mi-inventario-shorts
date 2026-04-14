@@ -241,7 +241,7 @@ elif seccion == "📜 Historial Completo":
         st.dataframe(datos_filtrados, use_container_width=True)
     else:
         st.info("Aún no hay movimientos en el historial.")
-    elif seccion == "📊 Reporte Semanal":
+elif seccion == "📊 Reporte Semanal":
         st.header("📊 Resumen de Ventas")
         res = supabase.table("historial").select("*").eq("tipo", "VENTA").execute()
         if res.data:
