@@ -188,7 +188,7 @@ elif seccion == "💰 Registrar Venta":
             else:
                 st.warning("Combinación no encontrada en el inventario.")
 
-    elif seccion == "📉 Gastos y Materiales":
+ elif seccion == "📉 Gastos y Materiales":
         st.header("📉 Control de Gastos")
         try:
             res_f = supabase.table("finanzas").select("*").eq("id", 1).execute()
