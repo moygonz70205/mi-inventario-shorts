@@ -182,13 +182,13 @@ elif seccion == "💰 Registrar Venta":
                     "cantidad": cant_venta,
                     "monto": (costo_reinv + ganancia_libre)
                 }).execute()
-                st.balloons()
-                st.success(f"✅ Venta exitosa. Guardado en Reinversión: ${costo_reinv} | Ganancia Libre: ${ganancia_libre}")
+                                st.success(f"✅ Venta exitosa. Guardado en Reinversión: ${costo_reinv} | Ganancia Libre: ${ganancia_libre}")
                 st.rerun()
             else:
+                # Esto es lo que faltaba para que no diera error de indentación
                 st.warning("Combinación no encontrada en el inventario.")
 
- elif seccion == "📉 Gastos y Materiales":
+    elif seccion == "📉 Gastos y Materiales":
         st.header("📉 Control de Gastos")
         try:
             res_f = supabase.table("finanzas").select("*").eq("id", 1).execute()
@@ -216,7 +216,6 @@ elif seccion == "💰 Registrar Venta":
         except Exception as e:
             st.error(f"Error: {e}")
 
-            
 elif seccion == "📜 Historial Completo":
     st.header("📜 Historial de Movimientos")
     
