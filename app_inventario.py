@@ -190,18 +190,33 @@ elif seccion == "💰 Registrar Venta":
             st.warning("Combinación no encontrada en el inventario.")
     else:
         st.warning("No hay productos registrados.")
-
 elif seccion == "📉 Gastos y Materiales":
-    elif seccion == "📉 Gastos y Materiales":
-        st.header("📉 Control de Caja")
-        res_f = supabase.table("finanzas").select("*").eq("id", 1).execute()
-        if res_f.data:
-            fin = res_f.data[0]
-            st.metric("Capital Reinversión", f"${fin['dinero_reinversion']:,.2f}")
-            st.metric("Ganancia Libre", f"${fin['dinero_libre']:,.2f}")
-        else:
-            st.error("No hay datos en la tabla finanzas")
-
+        st.header("📉 Control de Gastos")
+        try:
+            res_f = supabase.table("finanzas").select("*").eq("id", 1).execute()
+            if res_f.data:
+                fin = res_f.data[0]
+                c1, c2 = st.columns(2)
+                c1.metric("Capital Reinversión", f"${fin['dinero_reinversion']:,.2f}")
+                c2.metric("Ganancia Libre", f"${fin['dinero_libre']:,.2f}")
+                
+                st.divider()
+                with st.form("registro_gastos"):
+                    fuente = st.radio("¿De dónde sale?", ["Cajón Reinversión", "Ganancia Libre"], horizontal=True)
+                    motivo = st.text_input("¿En qué gastaste?")
+                    monto_gasto = st.number_input("Cantidad ($):", min_value=0.1)
+                    if st.form_submit_button("Aplicar Gasto"):
+                        col_update = "dinero_reinversion" if fuente == "Cajón Reinversión" else "dinero_libre"
+                        nuevo_valor = fin[col_update] - monto_gasto
+                        if nuevo_valor >= 0:
+                            supabase.table("finanzas").update({col_update: nuevo_valor}).eq("id", 1).execute()
+                            supabase.table("historial").insert({"tipo": "GASTO", "detalle": f"{motivo} ({fuente})", "monto": monto_gasto}).execute()
+                            st.success("✅ Gasto aplicado")
+                            st.rerun()
+                        else:
+                            st.error("❌ Saldo insuficiente")
+        except Exception as e:
+            st.error(f"Error: {e}")
 
 elif seccion == "📜 Historial Completo":
     st.header("📜 Historial de Movimientos")
@@ -228,37 +243,15 @@ elif seccion == "📜 Historial Completo":
         st.dataframe(datos_filtrados, use_container_width=True)
     else:
         st.info("Aún no hay movimientos en el historial.")
-
 elif seccion == "📊 Reporte Semanal":
-    st.header("📊 Centro de Reportes")
-    
-    # Traemos TODOS los datos de tipo VENTA sin importar mayúsculas/minúsculas
-    res = supabase.table("historial").select("*").execute()
-    datos_todos = res.data
-
-    if datos_todos:
-        import pandas as pd
-        df_completo = pd.DataFrame(datos_todos)
-        
-        # Filtramos solo ventas de forma segura
-        df = df_completo[df_completo['tipo'].str.upper() == "VENTA"].copy()
-        
-        if not df.empty:
-            # Forzamos que los números sean números
-            df['monto'] = pd.to_numeric(df['monto'], errors='coerce')
-            df['cantidad'] = pd.to_numeric(df['cantidad'], errors='coerce')
-
-            tab_semana, tab_mes, tab_año = st.tabs(["📅 Vista General", "🗓️ Mes", "📈 Año"])
-            
-            with tab_semana:
-                st.subheader("Ventas Registradas (Historial Total)")
-                c1, c2 = st.columns(2)
-                c1.metric("Cobrado Total", f"${df['monto'].sum():,.2f} MXN")
-                c2.metric("Piezas Vendidas", f"{int(df['cantidad'].sum())}")
-                
-                st.write("### Lista de Movimientos")
-                st.dataframe(df[['created_at', 'detalle', 'cantidad', 'monto']], use_container_width=True)
+        st.header("📊 Resumen de Ventas")
+        res = supabase.table("historial").select("*").eq("tipo", "VENTA").execute()
+        if res.data:
+            import pandas as pd
+            df = pd.DataFrame(res.data)
+            st.metric("Cobrado Total", f"${df['monto'].sum():,.2f}")
+            st.write("### Detalle")
+            st.dataframe(df[['created_at', 'detalle', 'monto']])
         else:
-            st.info("Aún no hay registros marcados como 'VENTA' en el historial.")
-    else:
-        st.warning("La tabla historial está vacía.")
+            st.info("No hay ventas registradas.")
+
