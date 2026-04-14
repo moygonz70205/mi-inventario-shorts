@@ -182,7 +182,7 @@ elif seccion == "💰 Registrar Venta":
                     "cantidad": cant_venta,
                     "monto": (costo_reinv + ganancia_libre)
                 }).execute()
-                                st.success(f"✅ Venta exitosa. Guardado en Reinversión: ${costo_reinv} | Ganancia Libre: ${ganancia_libre}")
+                st.success(f"✅ Venta exitosa. Guardado en Reinversión: ${costo_reinv} | Ganancia Libre: ${ganancia_libre}")
                 st.rerun()
             else:
                 # Esto es lo que faltaba para que no diera error de indentación
