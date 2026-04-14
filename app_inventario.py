@@ -188,7 +188,7 @@ elif seccion == "💰 Registrar Venta":
                 # Esto es lo que faltaba para que no diera error de indentación
                 st.warning("Combinación no encontrada en el inventario.")
 
-    elif seccion == "📉 Gastos y Materiales":
+    elif seccion == " 📒 Gastos y Materiales":
         st.header("📉 Control de Gastos")
         try:
             res_f = supabase.table("finanzas").select("*").eq("id", 1).execute()
@@ -241,7 +241,7 @@ elif seccion == "📜 Historial Completo":
         st.dataframe(datos_filtrados, use_container_width=True)
     else:
         st.info("Aún no hay movimientos en el historial.")
-elif seccion == "📊 Reporte Semanal":
+elif seccion == "📈  Reporte Semanal":
         st.header("📊 Resumen de Ventas")
         res = supabase.table("historial").select("*").eq("tipo", "VENTA").execute()
         if res.data:
