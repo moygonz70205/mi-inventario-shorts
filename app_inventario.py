@@ -185,10 +185,9 @@ elif seccion == "💰 Registrar Venta":
                 st.balloons()
                 st.success(f"✅ Venta exitosa. Guardado en Reinversión: ${costo_reinv} | Ganancia Libre: ${ganancia_libre}")
                 st.rerun()
-        else:
-            st.warning("Combinación no encontrada en el inventario.")
-    else:
-        st.warning("No hay productos registrados.")
+            else:
+                st.warning("Combinación no encontrada en el inventario.")
+
     elif seccion == "📉 Gastos y Materiales":
         st.header("📉 Control de Gastos")
         try:
@@ -216,6 +215,8 @@ elif seccion == "💰 Registrar Venta":
                             st.error("❌ Saldo insuficiente")
         except Exception as e:
             st.error(f"Error: {e}")
+
+            
 elif seccion == "📜 Historial Completo":
     st.header("📜 Historial de Movimientos")
     
