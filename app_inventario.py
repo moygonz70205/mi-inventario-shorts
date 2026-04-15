@@ -192,6 +192,7 @@ elif seccion == "💸 Finanzas":
         st.divider()
 
         st.subheader("Gastos")
+        motivo = st.text_input("Nombre del gasto (ej: tela, comida, transporte)")
         gasto = st.number_input("Cantidad", min_value=1.0)
         tipo_g = st.radio("De dónde sale", ["Reinversion", "Libre"])
 
@@ -205,7 +206,7 @@ elif seccion == "💸 Finanzas":
 
                 supabase.table("historial").insert({
                     "tipo": "GASTO",
-                    "detalle": tipo_g,
+                    "detalle": f"{motivo} ({tipo_g})",
                     "monto": gasto
                 }).execute()
 
@@ -241,11 +242,33 @@ elif seccion == "📊 Reporte":
     if datos:
         df = pd.DataFrame(datos)
 
-        st.metric("Total vendido", df["monto"].sum())
+        # Convertir fecha
+        df["fecha"] = pd.to_datetime(df["created_at"])
 
-        df["fecha"] = pd.to_datetime(df["created_at"]).dt.date
-        resumen = df.groupby("fecha")["monto"].sum()
+        # FILTRO DE TIEMPO
+        opcion = st.radio("Ver por:", ["Semana", "Mes", "Año"])
+
+        if opcion == "Semana":
+            df = df[df["fecha"] >= pd.Timestamp.now() - pd.Timedelta(days=7)]
+            df["grupo"] = df["fecha"].dt.date
+
+        elif opcion == "Mes":
+            df = df[df["fecha"] >= pd.Timestamp.now() - pd.Timedelta(days=30)]
+            df["grupo"] = df["fecha"].dt.date
+
+        elif opcion == "Año":
+            df["grupo"] = df["fecha"].dt.to_period("M").astype(str)
+
+        # AGRUPAR
+        resumen = df.groupby("grupo")["monto"].sum()
+
+        total = resumen.sum()
+
+        st.metric("Total vendido", total)
 
         st.line_chart(resumen)
+
+        st.dataframe(resumen.reset_index())
+
     else:
         st.info("No hay ventas registradas")
