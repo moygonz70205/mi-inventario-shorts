@@ -235,46 +235,43 @@ elif seccion == "📜 Historial":
 # 📊 REPORTE
 # ============================================================
 elif seccion == "📊 Reporte":
-    st.header("📊 Reporte de Ventas")
+    st.header("Reporte")
 
     datos = supabase.table("historial").select("*").eq("tipo", "VENTA").execute().data
 
     if datos:
         df = pd.DataFrame(datos)
 
-        # Convertir fecha
+        # Convertir fecha correctamente (SIN ERRORES)
         df["fecha"] = pd.to_datetime(df["created_at"], errors="coerce")
         df = df.dropna(subset=["fecha"])
 
         # Selector de rango
         opcion = st.radio("Ver por:", ["Semana", "Mes", "Año"])
 
+        hoy = pd.Timestamp.now()
+
         if opcion == "Semana":
-            hoy = pd.Timestamp.now()
             df_filtrado = df[df["fecha"] >= hoy - pd.Timedelta(days=7)]
-            agrupado = df_filtrado.groupby(df_filtrado["fecha"].dt.date)["monto"].sum()
+            df_filtrado["grupo"] = df_filtrado["fecha"].dt.date
 
         elif opcion == "Mes":
-            df_filtrado = df[df["fecha"] >= pd.Timestamp.now() - pd.Timedelta(days=30)]
-            agrupado = df_filtrado.groupby(df_filtrado["fecha"].dt.date)["monto"].sum()
+            df_filtrado = df[df["fecha"] >= hoy - pd.Timedelta(days=30)]
+            df_filtrado["grupo"] = df_filtrado["fecha"].dt.date
 
         else:  # Año
-            agrupado = df.groupby(df["fecha"].dt.to_period("M"))["monto"].sum()
-            agrupado.index = agrupado.index.astype(str)
+            df_filtrado = df.copy()
+            df_filtrado["grupo"] = df_filtrado["fecha"].dt.to_period("M").astype(str)
 
-        if not agrupado.empty:
-            total = agrupado.sum()
+        if not df_filtrado.empty:
+            total = df_filtrado["monto"].sum()
+            st.metric("Total vendido", total)
 
-            st.metric("💰 Total vendido", f"${total:,.2f}")
+            resumen = df_filtrado.groupby("grupo")["monto"].sum()
 
-            st.subheader("📈 Gráfica de ventas")
-            st.line_chart(agrupado)
-
-            st.subheader("📋 Detalle")
-            st.dataframe(agrupado.reset_index())
-
+            st.line_chart(resumen)
+            st.dataframe(resumen.reset_index())
         else:
-            st.warning("No hay datos en ese rango de tiempo")
-
+            st.warning("No hay datos en este rango")
     else:
         st.info("No hay ventas registradas")
