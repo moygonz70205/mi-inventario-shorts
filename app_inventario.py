@@ -243,7 +243,8 @@ elif seccion == "📊 Reporte":
         df = pd.DataFrame(datos)
 
         # Convertir fecha
-        df["fecha"] = pd.to_datetime(df["created_at"])
+        df["fecha"] = pd.to_datetime(df["created_at"], errors="coerce")
+        df = df.dropna(subset=["fecha"])
 
         # Selector de rango
         opcion = st.radio("Ver por:", ["Semana", "Mes", "Año"])
