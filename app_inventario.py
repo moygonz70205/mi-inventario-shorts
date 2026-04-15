@@ -2,47 +2,55 @@ import streamlit as st
 from supabase import create_client
 import pandas as pd
 
-# --- SUPABASE ---
+# --- CONEXIÓN ---
 URL = "https://gfsaxfsnaksilxomaivt.supabase.co"
 KEY = "sb_publishable_xN5SQe0Eq6bxTwv7PKyitQ_oG4VwnCd"
 supabase = create_client(URL, KEY)
 
-st.set_page_config(page_title="Negocio Shorts", layout="wide")
+st.set_page_config(page_title="Taller Shorts", layout="wide")
 
 # --- MENÚ ---
 with st.sidebar:
+    st.title("🧵 Taller")
     seccion = st.radio("Menú", [
+        "📥 Entrada de Mercancía",
         "📦 Inventario",
         "💰 Ventas",
-        "🚚 Envíos",
         "💸 Finanzas",
         "📜 Historial",
         "📊 Reporte"
     ])
 
 # ============================================================
-# 📦 INVENTARIO (SIN DUPLICADOS)
+# 📥 ENTRADA
 # ============================================================
-if seccion == "📦 Inventario":
-    st.header("Inventario")
+if seccion == "📥 Entrada de Mercancía":
+    st.header("Registrar producto")
 
-    with st.form("inv"):
-        modelo = st.text_input("Modelo", "Short")
-        tela = st.selectbox("Tela", ["Liso", "Camuflaje"])
-        color = st.text_input("Color")
-        talla = st.selectbox("Talla", ["CH", "M", "G"])
-        cantidad = st.number_input("Cantidad", min_value=1)
-        precio = st.number_input("Precio", min_value=0.0)
+    with st.form("entrada"):
+        c1, c2, c3 = st.columns(3)
+
+        with c1:
+            modelo = st.text_input("Modelo", "Short")
+            tela = st.selectbox("Tela", ["Liso", "Camuflaje"])
+
+        with c2:
+            color = st.text_input("Color")
+            talla = st.radio("Talla", ["CH", "M", "G"], horizontal=True)
+
+        with c3:
+            cantidad = st.number_input("Cantidad", min_value=1)
+            precio = st.number_input("Precio", min_value=0.0)
 
         if st.form_submit_button("Guardar"):
-            res = supabase.table("inventario_ropa").select("*").execute()
-            datos = res.data
+            datos = supabase.table("inventario_ropa").select("*").execute().data
 
-            existe = next((p for p in datos if p["modelo"] == modelo and p["tela"] == tela and p["color"] == color and p["talla"] == talla), None)
+            existe = next((p for p in datos if p["modelo"]==modelo and p["tela"]==tela and p["color"]==color and p["talla"]==talla), None)
 
             if existe:
-                nueva = existe["cantidad"] + cantidad
-                supabase.table("inventario_ropa").update({"cantidad": nueva}).eq("id", existe["id"]).execute()
+                supabase.table("inventario_ropa").update({
+                    "cantidad": existe["cantidad"] + cantidad
+                }).eq("id", existe["id"]).execute()
             else:
                 supabase.table("inventario_ropa").insert({
                     "modelo": modelo,
@@ -50,160 +58,165 @@ if seccion == "📦 Inventario":
                     "color": color,
                     "talla": talla,
                     "cantidad": cantidad,
-                    "precio": precio,
-                    "enviado": 0
+                    "precio": precio
                 }).execute()
 
             st.success("Guardado")
+            st.rerun()
+
+# ============================================================
+# 📦 INVENTARIO
+# ============================================================
+elif seccion == "📦 Inventario":
+    st.header("Inventario")
+
+    datos = supabase.table("inventario_ropa").select("*").execute().data
+
+    if datos:
+        df = pd.DataFrame(datos)
+        total = df["cantidad"].sum()
+
+        st.metric("Total de piezas", total)
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.warning("Sin productos")
 
 # ============================================================
 # 💰 VENTAS
 # ============================================================
 elif seccion == "💰 Ventas":
-    st.header("Ventas")
-
-    res = supabase.table("inventario_ropa").select("*").execute()
-    datos = res.data
-
-    if datos:
-        nombres = [f"{d['id']} - {d['color']} {d['talla']}" for d in datos]
-        sel = st.selectbox("Producto", nombres)
-
-        id_sel = int(sel.split(" - ")[0])
-        prod = next(p for p in datos if p["id"] == id_sel)
-
-        st.info(f"Stock disponible: {prod['cantidad']}")
-
-        cant = st.number_input("Cantidad", 1, prod["cantidad"])
-
-        if st.button("Vender"):
-            if prod["tela"] == "Liso":
-                reinv = 35.66 * cant
-                libre = 29.34 * cant
-            else:
-                reinv = 41.60 * cant
-                libre = 23.40 * cant
-
-            # actualizar inventario
-            supabase.table("inventario_ropa").update({
-                "cantidad": prod["cantidad"] - cant
-            }).eq("id", prod["id"]).execute()
-
-            # finanzas
-            f = supabase.table("finanzas").select("*").eq("id", 1).execute().data[0]
-
-            supabase.table("finanzas").update({
-                "dinero_reinversion": f["dinero_reinversion"] + reinv,
-                "dinero_libre": f["dinero_libre"] + libre
-            }).eq("id", 1).execute()
-
-            # historial
-            supabase.table("historial").insert({
-                "tipo": "VENTA",
-                "detalle": sel,
-                "cantidad": cant,
-                "monto": reinv + libre
-            }).execute()
-
-            st.success("Venta hecha")
-            st.rerun()
-
-# ============================================================
-# 🚚 ENVÍOS
-# ============================================================
-elif seccion == "🚚 Envíos":
-    st.header("Control de Envíos")
+    st.header("Registrar venta")
 
     datos = supabase.table("inventario_ropa").select("*").execute().data
 
-    nombres = [f"{d['id']} - {d['color']} {d['talla']}" for d in datos]
-    sel = st.selectbox("Producto", nombres)
+    if datos:
+        c1, c2, c3, c4 = st.columns([1,1,2,1])
 
-    id_sel = int(sel.split(" - ")[0])
-    prod = next(p for p in datos if p["id"] == id_sel)
+        with c1:
+            modelos = sorted(set([d["modelo"] for d in datos]))
+            modelo = st.selectbox("Modelo", modelos)
 
-    st.write(f"Stock: {prod['cantidad']} | Enviado: {prod['enviado']}")
+        with c2:
+            telas = sorted(set([d["tela"] for d in datos if d["modelo"] == modelo]))
+            tela = st.selectbox("Tela", telas)
 
-    enviar = st.number_input("Enviar", 0, prod["cantidad"])
-    recibir = st.number_input("Recibir", 0, prod["enviado"])
+        with c3:
+            colores = sorted(set([d["color"] for d in datos if d["modelo"] == modelo and d["tela"] == tela]))
+            color = st.selectbox("Color", colores)
 
-    if st.button("Actualizar"):
-        nuevo_stock = prod["cantidad"] - enviar + recibir
-        nuevo_env = prod["enviado"] + enviar - recibir
+        with c4:
+            tallas = [d["talla"] for d in datos if d["modelo"] == modelo and d["tela"] == tela and d["color"] == color]
+            talla = st.radio("Talla", tallas, horizontal=True)
 
-        supabase.table("inventario_ropa").update({
-            "cantidad": nuevo_stock,
-            "enviado": nuevo_env
-        }).eq("id", prod["id"]).execute()
+        prod = next((p for p in datos if p["modelo"]==modelo and p["tela"]==tela and p["color"]==color and p["talla"]==talla), None)
 
-        st.success("Actualizado")
-        st.rerun()
+        if prod:
+            st.info(f"Stock: {prod['cantidad']} | Precio: ${prod['precio']}")
+
+            cant = st.number_input("Cantidad", 1, prod["cantidad"])
+
+            if st.button("Vender"):
+                if prod["tela"] == "Liso":
+                    reinv = 35.66 * cant
+                    libre = 29.34 * cant
+                else:
+                    reinv = 41.60 * cant
+                    libre = 23.40 * cant
+
+                # INVENTARIO
+                supabase.table("inventario_ropa").update({
+                    "cantidad": prod["cantidad"] - cant
+                }).eq("id", prod["id"]).execute()
+
+                # FINANZAS
+                res_f = supabase.table("finanzas").select("*").eq("id", 1).execute()
+
+                if res_f.data:
+                    fin = res_f.data[0]
+
+                    supabase.table("finanzas").update({
+                        "dinero_reinversion": fin["dinero_reinversion"] + reinv,
+                        "dinero_libre": fin["dinero_libre"] + libre
+                    }).eq("id", 1).execute()
+
+                # HISTORIAL
+                supabase.table("historial").insert({
+                    "tipo": "VENTA",
+                    "detalle": f"{modelo} {tela} {color} {talla}",
+                    "cantidad": cant,
+                    "monto": reinv + libre
+                }).execute()
+
+                st.success("Venta registrada")
+                st.rerun()
 
 # ============================================================
-# 💸 FINANZAS (PRO)
+# 💸 FINANZAS
 # ============================================================
 elif seccion == "💸 Finanzas":
     st.header("Finanzas")
 
-    fin = supabase.table("finanzas").select("*").eq("id", 1).execute().data[0]
+    res = supabase.table("finanzas").select("*").eq("id", 1).execute()
 
-    total = fin["dinero_reinversion"] + fin["dinero_libre"]
+    if res.data:
+        fin = res.data[0]
+        total = fin["dinero_reinversion"] + fin["dinero_libre"]
 
-    st.metric("Total", total)
-    st.metric("Reinversión", fin["dinero_reinversion"])
-    st.metric("Libre", fin["dinero_libre"])
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total", total)
+        c2.metric("Reinversión", fin["dinero_reinversion"])
+        c3.metric("Libre", fin["dinero_libre"])
 
-    st.divider()
+        st.divider()
 
-    st.subheader("Transferir dinero")
+        st.subheader("Transferir dinero")
+        monto = st.number_input("Monto", min_value=1.0)
+        tipo = st.radio("Movimiento", ["Libre → Reinversión", "Reinversión → Libre"])
 
-    monto = st.number_input("Monto", min_value=1.0)
-    tipo = st.radio("Movimiento", ["Libre → Reinversión", "Reinversión → Libre"])
-
-    if st.button("Transferir"):
-        if tipo == "Libre → Reinversión":
-            if fin["dinero_libre"] >= monto:
+        if st.button("Transferir"):
+            if tipo == "Libre → Reinversión" and fin["dinero_libre"] >= monto:
                 supabase.table("finanzas").update({
                     "dinero_libre": fin["dinero_libre"] - monto,
                     "dinero_reinversion": fin["dinero_reinversion"] + monto
                 }).eq("id", 1).execute()
 
-        else:
-            if fin["dinero_reinversion"] >= monto:
+            elif tipo == "Reinversión → Libre" and fin["dinero_reinversion"] >= monto:
                 supabase.table("finanzas").update({
                     "dinero_reinversion": fin["dinero_reinversion"] - monto,
                     "dinero_libre": fin["dinero_libre"] + monto
                 }).eq("id", 1).execute()
 
-        st.success("Transferido")
-        st.rerun()
-
-    st.divider()
-
-    st.subheader("Registrar gasto")
-
-    gasto = st.number_input("Cantidad gasto", min_value=1.0)
-    tipo_g = st.radio("De dónde sale", ["Reinversion", "Libre"])
-
-    if st.button("Gastar"):
-        campo = "dinero_reinversion" if tipo_g == "Reinversion" else "dinero_libre"
-
-        if fin[campo] >= gasto:
-            supabase.table("finanzas").update({
-                campo: fin[campo] - gasto
-            }).eq("id", 1).execute()
-
-            supabase.table("historial").insert({
-                "tipo": "GASTO",
-                "detalle": tipo_g,
-                "monto": gasto
-            }).execute()
-
-            st.success("Gasto aplicado")
+            st.success("Movimiento realizado")
             st.rerun()
 
+        st.divider()
+
+        st.subheader("Gastos")
+        gasto = st.number_input("Cantidad", min_value=1.0)
+        tipo_g = st.radio("De dónde sale", ["Reinversion", "Libre"])
+
+        if st.button("Registrar gasto"):
+            campo = "dinero_reinversion" if tipo_g == "Reinversion" else "dinero_libre"
+
+            if fin[campo] >= gasto:
+                supabase.table("finanzas").update({
+                    campo: fin[campo] - gasto
+                }).eq("id", 1).execute()
+
+                supabase.table("historial").insert({
+                    "tipo": "GASTO",
+                    "detalle": tipo_g,
+                    "monto": gasto
+                }).execute()
+
+                st.success("Gasto registrado")
+                st.rerun()
+
+    else:
+        st.error("No existe registro en finanzas (id=1)")
+
 # ============================================================
-# 📜 HISTORIAL CON BUSCADOR
+# 📜 HISTORIAL
 # ============================================================
 elif seccion == "📜 Historial":
     st.header("Historial")
@@ -218,7 +231,7 @@ elif seccion == "📜 Historial":
     st.dataframe(datos)
 
 # ============================================================
-# 📊 REPORTE CON GRÁFICA
+# 📊 REPORTE
 # ============================================================
 elif seccion == "📊 Reporte":
     st.header("Reporte")
@@ -227,9 +240,12 @@ elif seccion == "📊 Reporte":
 
     if datos:
         df = pd.DataFrame(datos)
+
         st.metric("Total vendido", df["monto"].sum())
 
         df["fecha"] = pd.to_datetime(df["created_at"]).dt.date
         resumen = df.groupby("fecha")["monto"].sum()
 
         st.line_chart(resumen)
+    else:
+        st.info("No hay ventas registradas")
