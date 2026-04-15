@@ -242,36 +242,11 @@ elif seccion == "📊 Reporte":
     if datos:
         df = pd.DataFrame(datos)
 
-        # Convertir fecha correctamente (SIN ERRORES)
-        df["fecha"] = pd.to_datetime(df["created_at"], errors="coerce")
-        df = df.dropna(subset=["fecha"])
+        st.metric("Total vendido", df["monto"].sum())
 
-        # Selector de rango
-        opcion = st.radio("Ver por:", ["Semana", "Mes", "Año"])
+        df["fecha"] = pd.to_datetime(df["created_at"]).dt.date
+        resumen = df.groupby("fecha")["monto"].sum()
 
-        hoy = pd.Timestamp.now()
-
-        if opcion == "Semana":
-            df_filtrado = df[df["fecha"] >= hoy - pd.Timedelta(days=7)]
-            df_filtrado["grupo"] = df_filtrado["fecha"].dt.date
-
-        elif opcion == "Mes":
-            df_filtrado = df[df["fecha"] >= hoy - pd.Timedelta(days=30)]
-            df_filtrado["grupo"] = df_filtrado["fecha"].dt.date
-
-        else:  # Año
-            df_filtrado = df.copy()
-            df_filtrado["grupo"] = df_filtrado["fecha"].dt.to_period("M").astype(str)
-
-        if not df_filtrado.empty:
-            total = df_filtrado["monto"].sum()
-            st.metric("Total vendido", total)
-
-            resumen = df_filtrado.groupby("grupo")["monto"].sum()
-
-            st.line_chart(resumen)
-            st.dataframe(resumen.reset_index())
-        else:
-            st.warning("No hay datos en este rango")
+        st.bar_chart(resumen)
     else:
         st.info("No hay ventas registradas")
