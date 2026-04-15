@@ -235,7 +235,7 @@ elif seccion == "📜 Historial":
 # 📊 REPORTE
 # ============================================================
 elif seccion == "📊 Reporte":
-    st.header("Reporte")
+    st.header("📊 Reporte de Ventas")
 
     datos = supabase.table("historial").select("*").eq("tipo", "VENTA").execute().data
 
@@ -245,30 +245,34 @@ elif seccion == "📊 Reporte":
         # Convertir fecha
         df["fecha"] = pd.to_datetime(df["created_at"])
 
-        # FILTRO DE TIEMPO
+        # Selector de rango
         opcion = st.radio("Ver por:", ["Semana", "Mes", "Año"])
 
         if opcion == "Semana":
-            df = df[df["fecha"] >= pd.Timestamp.now() - pd.Timedelta(days=7)]
-            df["grupo"] = df["fecha"].dt.date
+            df_filtrado = df[df["fecha"] >= pd.Timestamp.now() - pd.Timedelta(days=7)]
+            agrupado = df_filtrado.groupby(df_filtrado["fecha"].dt.date)["monto"].sum()
 
         elif opcion == "Mes":
-            df = df[df["fecha"] >= pd.Timestamp.now() - pd.Timedelta(days=30)]
-            df["grupo"] = df["fecha"].dt.date
+            df_filtrado = df[df["fecha"] >= pd.Timestamp.now() - pd.Timedelta(days=30)]
+            agrupado = df_filtrado.groupby(df_filtrado["fecha"].dt.date)["monto"].sum()
 
-        elif opcion == "Año":
-            df["grupo"] = df["fecha"].dt.to_period("M").astype(str)
+        else:  # Año
+            agrupado = df.groupby(df["fecha"].dt.to_period("M"))["monto"].sum()
+            agrupado.index = agrupado.index.astype(str)
 
-        # AGRUPAR
-        resumen = df.groupby("grupo")["monto"].sum()
+        if not agrupado.empty:
+            total = agrupado.sum()
 
-        total = resumen.sum()
+            st.metric("💰 Total vendido", f"${total:,.2f}")
 
-        st.metric("Total vendido", total)
+            st.subheader("📈 Gráfica de ventas")
+            st.line_chart(agrupado)
 
-        st.line_chart(resumen)
+            st.subheader("📋 Detalle")
+            st.dataframe(agrupado.reset_index())
 
-        st.dataframe(resumen.reset_index())
+        else:
+            st.warning("No hay datos en ese rango de tiempo")
 
     else:
         st.info("No hay ventas registradas")
