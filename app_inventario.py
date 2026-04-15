@@ -250,7 +250,8 @@ elif seccion == "📊 Reporte":
         opcion = st.radio("Ver por:", ["Semana", "Mes", "Año"])
 
         if opcion == "Semana":
-            df_filtrado = df[df["fecha"] >= pd.Timestamp.now() - pd.Timedelta(days=7)]
+            hoy = pd.Timestamp.now()
+            df_filtrado = df[df["fecha"] >= hoy - pd.Timedelta(days=7)]
             agrupado = df_filtrado.groupby(df_filtrado["fecha"].dt.date)["monto"].sum()
 
         elif opcion == "Mes":
