@@ -156,36 +156,112 @@ elif seccion == "💰 Ventas":
 elif seccion == "💸 Finanzas":
     st.header("Finanzas")
 
-    # Traer historial de ventas
-    datos = supabase.table("historial").select("*").eq("tipo", "VENTA").execute().data
+    # =========================
+    # 1. VENTAS (BASE REAL)
+    # =========================
+    ventas = supabase.table("historial").select("*").eq("tipo", "VENTA").execute().data
 
-    if datos:
-        df = pd.DataFrame(datos)
+    reinv_base = 0
+    libre_base = 0
 
-        total = df["monto"].sum()
-
-        # Calcular reinversión y libre desde detalle
-        reinversion = 0
-        libre = 0
-
-        for _, row in df.iterrows():
-            detalle = row["detalle"]
-
-            if "Liso" in detalle:
-                reinversion += 35.66 * row["cantidad"]
-                libre += 29.34 * row["cantidad"]
+    if ventas:
+        for v in ventas:
+            if "Liso" in v["detalle"]:
+                reinv_base += 35.66 * v["cantidad"]
+                libre_base += 29.34 * v["cantidad"]
             else:
-                reinversion += 41.60 * row["cantidad"]
-                libre += 23.40 * row["cantidad"]
+                reinv_base += 41.60 * v["cantidad"]
+                libre_base += 23.40 * v["cantidad"]
 
-        # MOSTRAR
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total vendido", f"${total:,.2f}")
-        c2.metric("Reinversión", f"${reinversion:,.2f}")
-        c3.metric("Ganancia libre", f"${libre:,.2f}")
+    # =========================
+    # 2. GASTOS
+    # =========================
+    gastos = supabase.table("historial").select("*").eq("tipo", "GASTO").execute().data
 
-    else:
-        st.info("No hay ventas registradas")
+    gasto_reinv = 0
+    gasto_libre = 0
+
+    if gastos:
+        for g in gastos:
+            if "Reinversion" in g["detalle"]:
+                gasto_reinv += g["monto"]
+            else:
+                gasto_libre += g["monto"]
+
+    # =========================
+    # 3. TRANSFERENCIAS (tabla finanzas)
+    # =========================
+    res = supabase.table("finanzas").select("*").eq("id", 1).execute()
+
+    extra_reinv = 0
+    extra_libre = 0
+
+    if res.data:
+        fin = res.data[0]
+        extra_reinv = fin["dinero_reinversion"]
+        extra_libre = fin["dinero_libre"]
+
+    # =========================
+    # 4. RESULTADO FINAL
+    # =========================
+    reinversion = reinv_base - gasto_reinv + extra_reinv
+    libre = libre_base - gasto_libre + extra_libre
+    total = reinversion + libre
+
+    # =========================
+    # MOSTRAR
+    # =========================
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total", f"${total:,.2f}")
+    c2.metric("Reinversión", f"${reinversion:,.2f}")
+    c3.metric("Libre", f"${libre:,.2f}")
+
+    st.divider()
+
+    # =========================
+    # TRANSFERENCIAS
+    # =========================
+    st.subheader("Transferir dinero")
+
+    monto = st.number_input("Monto", min_value=1.0)
+    tipo = st.radio("Movimiento", ["Libre → Reinversión", "Reinversión → Libre"])
+
+    if st.button("Transferir"):
+        if tipo == "Libre → Reinversión":
+            supabase.table("finanzas").update({
+                "dinero_libre": extra_libre - monto,
+                "dinero_reinversion": extra_reinv + monto
+            }).eq("id", 1).execute()
+
+        else:
+            supabase.table("finanzas").update({
+                "dinero_reinversion": extra_reinv - monto,
+                "dinero_libre": extra_libre + monto
+            }).eq("id", 1).execute()
+
+        st.success("Transferencia realizada")
+        st.rerun()
+
+    st.divider()
+
+    # =========================
+    # GASTOS CON NOMBRE
+    # =========================
+    st.subheader("Registrar gasto")
+
+    motivo = st.text_input("Nombre del gasto (ej: tela, comida, transporte)")
+    monto_gasto = st.number_input("Cantidad", min_value=1.0)
+    tipo_g = st.radio("De dónde sale", ["Reinversion", "Libre"])
+
+    if st.button("Registrar gasto"):
+        supabase.table("historial").insert({
+            "tipo": "GASTO",
+            "detalle": f"{motivo} ({tipo_g})",
+            "monto": monto_gasto
+        }).execute()
+
+        st.success("Gasto registrado")
+        st.rerun()
 
 # ============================================================
 # 📜 HISTORIAL
