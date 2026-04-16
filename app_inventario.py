@@ -161,65 +161,44 @@ elif seccion == "💸 Finanzas":
     # =========================
     ventas = supabase.table("historial").select("*").eq("tipo", "VENTA").execute().data
 
-    reinv_base = 0
-    libre_base = 0
+    reinversion = 0
+    libre = 0
 
     if ventas:
         for v in ventas:
             if "Liso" in v["detalle"]:
-                reinv_base += 35.66 * v["cantidad"]
-                libre_base += 29.34 * v["cantidad"]
+                reinversion += 35.66 * v["cantidad"]
+                libre += 29.34 * v["cantidad"]
             else:
-                reinv_base += 41.60 * v["cantidad"]
-                libre_base += 23.40 * v["cantidad"]
+                reinversion += 41.60 * v["cantidad"]
+                libre += 23.40 * v["cantidad"]
 
     # =========================
     # 2. GASTOS
     # =========================
     gastos = supabase.table("historial").select("*").eq("tipo", "GASTO").execute().data
 
-    gasto_reinv = 0
-    gasto_libre = 0
-
     if gastos:
         for g in gastos:
             if "Reinversion" in g["detalle"]:
-                gasto_reinv += g["monto"]
+                reinversion -= g["monto"]
             else:
-                gasto_libre += g["monto"]
+                libre -= g["monto"]
 
-    # =========================
-    # 3. TRANSFERENCIAS (tabla finanzas)
-    # =========================
-    res = supabase.table("finanzas").select("*").eq("id", 1).execute()
-
-    extra_reinv = 0
-    extra_libre = 0
-
-    if res.data:
-        fin = res.data[0]
-        extra_reinv = fin["dinero_reinversion"]
-        extra_libre = fin["dinero_libre"]
-
-    # =========================
-    # 4. RESULTADO FINAL
-    # =========================
-    reinversion = reinv_base - gasto_reinv + extra_reinv
-    libre = libre_base - gasto_libre + extra_libre
     total = reinversion + libre
 
     # =========================
-    # MOSTRAR
+    # MOSTRAR (YA CUADRA CON REPORTE)
     # =========================
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total", f"${total:,.2f}")
+    c1.metric("Total (igual que reporte)", f"${total:,.2f}")
     c2.metric("Reinversión", f"${reinversion:,.2f}")
     c3.metric("Libre", f"${libre:,.2f}")
 
     st.divider()
 
     # =========================
-    # TRANSFERENCIAS
+    # TRANSFERENCIAS (SOLO VISUAL / CONTROL)
     # =========================
     st.subheader("Transferir dinero")
 
@@ -227,19 +206,14 @@ elif seccion == "💸 Finanzas":
     tipo = st.radio("Movimiento", ["Libre → Reinversión", "Reinversión → Libre"])
 
     if st.button("Transferir"):
-        if tipo == "Libre → Reinversión":
-            supabase.table("finanzas").update({
-                "dinero_libre": extra_libre - monto,
-                "dinero_reinversion": extra_reinv + monto
-            }).eq("id", 1).execute()
+        # Solo se registra en historial para control
+        supabase.table("historial").insert({
+            "tipo": "TRANSFERENCIA",
+            "detalle": tipo,
+            "monto": monto
+        }).execute()
 
-        else:
-            supabase.table("finanzas").update({
-                "dinero_reinversion": extra_reinv - monto,
-                "dinero_libre": extra_libre + monto
-            }).eq("id", 1).execute()
-
-        st.success("Transferencia realizada")
+        st.success("Transferencia registrada")
         st.rerun()
 
     st.divider()
