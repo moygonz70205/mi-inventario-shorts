@@ -156,65 +156,36 @@ elif seccion == "💰 Ventas":
 elif seccion == "💸 Finanzas":
     st.header("Finanzas")
 
-    res = supabase.table("finanzas").select("*").eq("id", 1).execute()
+    # Traer historial de ventas
+    datos = supabase.table("historial").select("*").eq("tipo", "VENTA").execute().data
 
-    if res.data:
-        fin = res.data[0]
-        total = fin["dinero_reinversion"] + fin["dinero_libre"]
+    if datos:
+        df = pd.DataFrame(datos)
 
+        total = df["monto"].sum()
+
+        # Calcular reinversión y libre desde detalle
+        reinversion = 0
+        libre = 0
+
+        for _, row in df.iterrows():
+            detalle = row["detalle"]
+
+            if "Liso" in detalle:
+                reinversion += 35.66 * row["cantidad"]
+                libre += 29.34 * row["cantidad"]
+            else:
+                reinversion += 41.60 * row["cantidad"]
+                libre += 23.40 * row["cantidad"]
+
+        # MOSTRAR
         c1, c2, c3 = st.columns(3)
-        c1.metric("Total", total)
-        c2.metric("Reinversión", fin["dinero_reinversion"])
-        c3.metric("Libre", fin["dinero_libre"])
-
-        st.divider()
-
-        st.subheader("Transferir dinero")
-        monto = st.number_input("Monto", min_value=1.0)
-        tipo = st.radio("Movimiento", ["Libre → Reinversión", "Reinversión → Libre"])
-
-        if st.button("Transferir"):
-            if tipo == "Libre → Reinversión" and fin["dinero_libre"] >= monto:
-                supabase.table("finanzas").update({
-                    "dinero_libre": fin["dinero_libre"] - monto,
-                    "dinero_reinversion": fin["dinero_reinversion"] + monto
-                }).eq("id", 1).execute()
-
-            elif tipo == "Reinversión → Libre" and fin["dinero_reinversion"] >= monto:
-                supabase.table("finanzas").update({
-                    "dinero_reinversion": fin["dinero_reinversion"] - monto,
-                    "dinero_libre": fin["dinero_libre"] + monto
-                }).eq("id", 1).execute()
-
-            st.success("Movimiento realizado")
-            st.rerun()
-
-        st.divider()
-
-        st.subheader("Gastos")
-        motivo = st.text_input("Nombre del gasto (ej: tela, comida, transporte)")
-        gasto = st.number_input("Cantidad", min_value=1.0)
-        tipo_g = st.radio("De dónde sale", ["Reinversion", "Libre"])
-
-        if st.button("Registrar gasto"):
-            campo = "dinero_reinversion" if tipo_g == "Reinversion" else "dinero_libre"
-
-            if fin[campo] >= gasto:
-                supabase.table("finanzas").update({
-                    campo: fin[campo] - gasto
-                }).eq("id", 1).execute()
-
-                supabase.table("historial").insert({
-                    "tipo": "GASTO",
-                    "detalle": f"{motivo} ({tipo_g})",
-                    "monto": gasto
-                }).execute()
-
-                st.success("Gasto registrado")
-                st.rerun()
+        c1.metric("Total vendido", f"${total:,.2f}")
+        c2.metric("Reinversión", f"${reinversion:,.2f}")
+        c3.metric("Ganancia libre", f"${libre:,.2f}")
 
     else:
-        st.error("No existe registro en finanzas (id=1)")
+        st.info("No hay ventas registradas")
 
 # ============================================================
 # 📜 HISTORIAL
