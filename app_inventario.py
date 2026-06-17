@@ -127,13 +127,22 @@ elif seccion == "💰 Ventas":
             color = st.selectbox("Color", colores)
 
         with c4:
-            tallas = [d["talla"] for d in datos if d["modelo"] == modelo and d["tela"] == tela and d["color"] == color]
+            tallas = sorted(list(set(
+                d["talla"]
+                for d in datos
+                if d["modelo"] == modelo
+                and d["tela"] == tela
+                and d["color"] == color
+            )))
             talla = st.radio("Talla", tallas, horizontal=True)
 
         prod = next((p for p in datos if p["modelo"]==modelo and p["tela"]==tela and p["color"]==color and p["talla"]==talla), None)
 
         if prod:
-            st.info(f"Stock: {prod['cantidad']} | Precio: ${prod['precio']}")
+            st.info(
+                f"📦 Stock disponible: {prod['cantidad']} pieza(s)\n\n"
+                f"💲 Precio: ${prod['precio']:.2f}"
+            )
 
             cant = st.number_input("Cantidad", 1, prod["cantidad"])
 
