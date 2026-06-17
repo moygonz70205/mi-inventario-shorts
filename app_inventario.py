@@ -48,28 +48,19 @@ if seccion == "📥 Entrada de Mercancía":
             existe = next((p for p in datos if p["modelo"]==modelo and p["tela"]==tela and p["color"]==color and p["talla"]==talla), None)
 
             if existe:
-                supabase.table("inventario_ropa").update({
-                    "cantidad": existe["cantidad"] + cantidad
-                }).eq("id", existe["id"]).execute()
-            else:
-                supabase.table("inventario_ropa").insert({
-                    "modelo": modelo,
-                    "tela": tela,
-                    "color": color,
-                    "talla": talla,
-                    "cantidad": cantidad,
-                    "precio": precio
-                }).execute()
+    supabase.table("inventario_ropa").update({
+        "cantidad": existe["cantidad"] + cantidad
+    }).eq("id", existe["id"]).execute()
 
-            else:
-                supabase.table("inventario_ropa").insert({
-                    "modelo": modelo,
-                    "tela": tela,
-                    "color": color,
-                    "talla": talla,
-                    "cantidad": cantidad,
-                    "precio": precio
-                }).execute()
+else:
+    supabase.table("inventario_ropa").insert({
+        "modelo": modelo,
+        "tela": tela,
+        "color": color,
+        "talla": talla,
+        "cantidad": cantidad,
+        "precio": precio
+    }).execute()
 
             if existe:
                 st.success(
