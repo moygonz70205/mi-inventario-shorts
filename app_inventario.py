@@ -61,7 +61,38 @@ if seccion == "📥 Entrada de Mercancía":
                     "precio": precio
                 }).execute()
 
-            st.success("Guardado")
+                        else:
+                supabase.table("inventario_ropa").insert({
+                    "modelo": modelo,
+                    "tela": tela,
+                    "color": color,
+                    "talla": talla,
+                    "cantidad": cantidad,
+                    "precio": precio
+                }).execute()
+
+            if existe:
+                st.success(
+                    f"✅ Stock actualizado correctamente\n\n"
+                    f"Se agregaron {cantidad} pieza(s)\n\n"
+                    f"{modelo} • {tela}\n"
+                    f"Color: {color}\n"
+                    f"Talla: {talla}"
+                )
+            else:
+                st.success(
+                    f"✅ Inventario registrado correctamente\n\n"
+                    f"{cantidad} pieza(s)\n\n"
+                    f"{modelo} • {tela}\n"
+                    f"Color: {color}\n"
+                    f"Talla: {talla}"
+                )
+
+            st.balloons()
+
+            import time
+            time.sleep(2)
+
             st.rerun()
 
 # ============================================================
