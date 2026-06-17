@@ -61,7 +61,7 @@ if seccion == "📥 Entrada de Mercancía":
                     "precio": precio
                 }).execute()
 
-             else:
+            else:
                 supabase.table("inventario_ropa").insert({
                     "modelo": modelo,
                     "tela": tela,
