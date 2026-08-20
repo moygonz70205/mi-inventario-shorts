@@ -34,7 +34,6 @@ if seccion == "🏠 Panel de Control Operativo":
     st.caption("Resumen ejecutivo en tiempo real sobre el estado financiero, ventas del día y nivel de existencias en almacén.")
     st.divider()
 
-    # Obtener datos
     ventas = supabase.table("historial").select("*").eq("tipo", "VENTA").execute().data
     inventario = supabase.table("inventario_ropa").select("*").execute().data
     finanzas = supabase.table("finanzas").select("*").eq("id", 1).execute().data
@@ -49,7 +48,6 @@ if seccion == "🏠 Panel de Control Operativo":
     total_inv_valor = sum(p["cantidad"] * p["precio"] for p in inventario) if inventario else 0.0
     pocos_prod = [p for p in inventario if p["cantidad"] <= 3] if inventario else []
 
-    # Métricas principales
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Ventas del Día", f"${ventas_hoy:,.2f}")
     c2.metric("Capital y Crecimiento", f"${d_reinv:,.2f}")
@@ -81,8 +79,6 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
 
         if datos:
             df = pd.DataFrame(datos)
-            
-            # Resumen agrupado
             resumen_tallas = df.groupby(["modelo", "tela", "talla"])["cantidad"].sum().unstack(fill_value=0)
             st.dataframe(resumen_tallas, use_container_width=True)
             
@@ -99,7 +95,6 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
                 ]
             st.dataframe(df, use_container_width=True)
 
-            # Módulo de edición/eliminación
             st.divider()
             st.subheader("🛠️ Modificar o Eliminar Registro de Almacén")
             id_mod = st.number_input("Ingresa el ID del registro a modificar/eliminar", min_value=1, step=1)
@@ -146,7 +141,7 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
                 
                 cfg_item = next((c for c in configs if c.get("tela") == e_tela), None) if configs else None
                 default_precio = cfg_item.get("precio_venta", 65.0) if cfg_item else 65.0
-                default_costo = cfg_item.get("costo_fabricacio", 30.0) if cfg_item else 30.0
+                default_costo = cfg_item.get("costo_fabricacion", 30.0) if cfg_item else 30.0
                 
                 e_precio = st.number_input("Precio de Venta Unitario ($)", min_value=0.0, value=float(default_precio))
 
@@ -226,11 +221,11 @@ elif seccion == "💰 Módulo de Ventas":
                 cant_vender = st.number_input("Cantidad a vender", min_value=1, max_value=prod["cantidad"], value=1)
                 
                 cfg_item = next((c for c in configs if c.get("tela") == tela), None) if configs else None
-                costo_fab = cfg_item.get("costo_fabricacio", 30.0) if cfg_item else 30.0
+                costo_fab = cfg_item.get("costo_fabricacion", 30.0) if cfg_item else 30.0
                 
-                pct_crec = (cfg_item.get("porcentaje_creci", 60) / 100) if cfg_item else 0.60
-                pct_disp = (cfg_item.get("porcentaje_dispo", 30) / 100) if cfg_item else 0.30
-                pct_emer = (cfg_item.get("porcentaje_emer", 10) / 100) if cfg_item else 0.10
+                pct_crec = (cfg_item.get("porcentaje_crecimiento", 60) / 100) if cfg_item else 0.60
+                pct_disp = (cfg_item.get("porcentaje_disponibilidad", 30) / 100) if cfg_item else 0.30
+                pct_emer = (cfg_item.get("porcentaje_emergencia", 10) / 100) if cfg_item else 0.10
 
                 monto_total = cant_vender * prod["precio"]
                 costo_total = cant_vender * costo_fab
@@ -244,10 +239,8 @@ elif seccion == "💰 Módulo de Ventas":
                 st.write(f"**Desglose estimado:** Total: **${monto_total:,.2f}** | Capital + Crecimiento: **${c_reinv_total:,.2f}** | Rendimiento: **${c_libre:,.2f}** | Reserva: **${c_emerg:,.2f}**")
 
                 if st.button("🛒 Confirmar y Registrar Venta", type="primary"):
-                    # 1. Descontar Inventario
                     supabase.table("inventario_ropa").update({"cantidad": prod["cantidad"] - cant_vender}).eq("id", prod["id"]).execute()
 
-                    # 2. Actualizar Finanzas con el Líquido Rojo (utilidad_reinversion_acumulada)
                     fin = supabase.table("finanzas").select("*").eq("id", 1).execute().data
                     if fin:
                         f_curr = fin[0]
@@ -261,7 +254,6 @@ elif seccion == "💰 Módulo de Ventas":
                             "utilidad_reinversion_acumulada": u_acum_prev + utilidad_crecimiento
                         }).eq("id", 1).execute()
 
-                    # 3. Registrar en Historial
                     supabase.table("historial").insert({
                         "tipo": "VENTA",
                         "detalle": f"Venta: {modelo} {tela} {color} {talla}",
@@ -281,7 +273,7 @@ elif seccion == "💰 Módulo de Ventas":
         st.info("Sin existencias registradas en inventario.")
 
 # ============================================================
-# 4. TESORERÍA Y FINANZAS (CUBETA TRANSPARENTE)
+# 4. TESORERÍA Y FINANZAS
 # ============================================================
 elif seccion == "💸 Tesorería y Finanzas":
     st.header("💸 Tesorería y Capital de Trabajo")
@@ -297,7 +289,6 @@ elif seccion == "💸 Tesorería y Finanzas":
         d_emerg = f.get("dinero_emergencia", 0.0) or 0.0
         u_acum = f.get("utilidad_reinversion_acumulada", 0.0) or 0.0
 
-        # Evitar errores de cálculo si la utilidad registrada supera temporalmente la cubeta
         u_acum_real = min(u_acum, d_reinv)
         capital_base_real = max(0.0, d_reinv - u_acum_real)
 
@@ -312,9 +303,6 @@ elif seccion == "💸 Tesorería y Finanzas":
 
         st.divider()
 
-        # ==========================================
-        # 🥛 MONITOR VISUAL DE LA CUBETA TRANSPARENTE
-        # ==========================================
         st.subheader("🥛 Monitor Visual: Cubeta de Capital y Crecimiento")
         st.caption("Análisis interno de los dos componentes acumulados dentro de la cuenta de Reinversión:")
 
@@ -329,13 +317,11 @@ elif seccion == "💸 Tesorería y Finanzas":
         col_cub1.metric("🔵 Capital Base (Costo Recuperado)", f"${capital_base_real:,.2f}", f"{pct_blue:.1f}% del fondo")
         col_cub2.metric("🔴 Utilidad para Crecimiento (60% Ganancia)", f"${u_acum_real:,.2f}", f"{pct_red:.1f}% del fondo")
 
-        # Barra visual gráfica
         st.progress(pct_blue / 100 if d_reinv > 0 else 0.0)
         st.caption(f"🔵 **Capital Base:** {pct_blue:.1f}% | 🔴 **Utilidad Crecimiento:** {pct_red:.1f}% (Total Gastable: **${d_reinv:,.2f} MXN**)")
 
         st.divider()
 
-        # TRANSFERENCIAS REALES
         st.subheader("🔄 Transferencias Monetarias Internas")
         col_t1, col_t2, col_t3 = st.columns(3)
         
@@ -365,7 +351,6 @@ elif seccion == "💸 Tesorería y Finanzas":
 
                     upd_payload = {col_orig: n_orig, col_dest: n_dest}
 
-                    # Ajuste proporcional de utilidad si la transferencia sale de Capital y Crecimiento
                     if cuenta_origen == "Capital y Crecimiento" and d_reinv > 0:
                         ratio_utilidad = u_acum_real / d_reinv
                         upd_payload["utilidad_reinversion_acumulada"] = max(0.0, u_acum_real - (monto_mov * ratio_utilidad))
@@ -385,7 +370,6 @@ elif seccion == "💸 Tesorería y Finanzas":
 
         st.divider()
 
-        # REGISTRO DE GASTOS / RETIROS
         st.subheader("📉 Registrar Egreso / Gasto")
         g_motivo = st.text_input("Concepto del egreso (ej. Compra de tela, luz, retiro personal)")
         g_monto = st.number_input("Monto del egreso ($)", min_value=1.0, value=50.0)
@@ -402,7 +386,6 @@ elif seccion == "💸 Tesorería y Finanzas":
             if val_g >= g_monto:
                 upd_gasto = {col_g: val_g - g_monto}
 
-                # Descuento proporcional del líquido rojo si se gasta de Capital y Crecimiento
                 if g_cuenta == "Capital y Crecimiento" and d_reinv > 0:
                     ratio_utilidad = u_acum_real / d_reinv
                     upd_gasto["utilidad_reinversion_acumulada"] = max(0.0, u_acum_real - (g_monto * ratio_utilidad))
@@ -515,7 +498,6 @@ elif seccion == "⚙️ Configuración de Productos":
             if (p_crec + p_disp + p_emer) != 100:
                 st.error("La suma de los 3 porcentajes debe ser exactamente 100%.")
             else:
-                # Nombres de columnas coincidentes con Supabase
                 datos_upd = {
                     "costo_fabricacion": c_costo,
                     "precio_venta": c_precio,
@@ -524,11 +506,11 @@ elif seccion == "⚙️ Configuración de Productos":
                     "porcentaje_emergencia": p_emer
                 }
 
-                # Buscar si la tela existe (ID 1 o ID 2)
-                item_exist = next((x for x in cfg_data if x.get("tela") == c_tela), None) if cfg_data else None
+                # Consulta directa en vivo a Supabase
+                res_live = supabase.table("configuracion_productos").select("*").eq("tela", c_tela).execute().data
 
-                if item_exist:
-                    supabase.table("configuracion_productos").update(datos_upd).eq("id", item_exist["id"]).execute()
+                if res_live:
+                    supabase.table("configuracion_productos").update(datos_upd).eq("id", res_live[0]["id"]).execute()
                     st.success(f"✅ ¡Parámetros de {c_tela} actualizados correctamente!")
                 else:
                     datos_upd["tela"] = c_tela
@@ -536,4 +518,5 @@ elif seccion == "⚙️ Configuración de Productos":
                     supabase.table("configuracion_productos").insert(datos_upd).execute()
                     st.success(f"✅ ¡Nueva configuración guardada para {c_tela}!")
 
+                time.sleep(1)
                 st.rerun()
