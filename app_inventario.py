@@ -502,45 +502,37 @@ elif seccion == "⚙️ Configuración de Productos":
     st.subheader("Actualizar Parámetros por Tela")
     with st.form("form_config"):
         c_tela = st.selectbox("Selecciona Tela a Configurar", ["Liso", "Camuflaje"])
-        c_costo = st.number_input("Costo de Fabricación ($)", min_value=0.0, value=30.0)
+        c_costo = st.number_input("Costo de Fabricación ($)", min_value=0.0, value=38.0 if c_tela == "Liso" else 42.0)
         c_precio = st.number_input("Precio de Venta ($)", min_value=0.0, value=65.0)
         
         st.markdown("**Porcentajes de Utilidad (%)**")
         col_p1, col_p2, col_p3 = st.columns(3)
-        p_crec = col_p1.number_input("% Crecimiento / Reinversión", value=60)
-        p_disp = col_p2.number_input("% Rendimiento Propietario", value=30)
-        p_emer = col_p3.number_input("% Reserva Operativa", value=10)
+        p_crec = col_p1.number_input("% Crecimiento / Reinversión", value=50)
+        p_disp = col_p2.number_input("% Rendimiento Propietario", value=35)
+        p_emer = col_p3.number_input("% Reserva Operativa", value=15)
 
         if st.form_submit_button("Guardar Parámetros"):
             if (p_crec + p_disp + p_emer) != 100:
                 st.error("La suma de los 3 porcentajes debe ser exactamente 100%.")
             else:
-                # 1. Obtener registros actualizados directamente de la base de datos
-                registros = supabase.table("configuracion_productos").select("*").execute().data or []
-                
-                # 2. Identificar el nombre exacto de la columna de tela
-                col_nombre = "tela"
-                if registros and "tipo_tela" in registros[0]:
-                    col_nombre = "tipo_tela"
-                
-                # 3. Buscar si ya existe la tela seleccionada
-                existente = next((r for r in registros if str(r.get(col_nombre, "")).strip().lower() == c_tela.strip().lower()), None)
-
+                # Nombres de columnas coincidentes con Supabase
                 datos_upd = {
-                    "costo_fabricacio": c_costo,
+                    "costo_fabricacion": c_costo,
                     "precio_venta": c_precio,
-                    "porcentaje_creci": p_crec,
-                    "porcentaje_dispo": p_disp,
-                    "porcentaje_emer": p_emer
+                    "porcentaje_crecimiento": p_crec,
+                    "porcentaje_disponible": p_disp,
+                    "porcentaje_emergencia": p_emer
                 }
 
-                if existente:
-                    # Actualización forzada mediante el ID único del registro
-                    supabase.table("configuracion_productos").update(datos_upd).eq("id", existente["id"]).execute()
+                # Buscar si la tela existe (ID 1 o ID 2)
+                item_exist = next((x for x in cfg_data if x.get("tela") == c_tela), None) if cfg_data else None
+
+                if item_exist:
+                    supabase.table("configuracion_productos").update(datos_upd).eq("id", item_exist["id"]).execute()
                     st.success(f"✅ ¡Parámetros de {c_tela} actualizados correctamente!")
                 else:
-                    # Inserción limpia asignando la columna correcta
-                    datos_upd[col_nombre] = c_tela
+                    datos_upd["tela"] = c_tela
+                    datos_upd["modelo"] = "Short"
                     supabase.table("configuracion_productos").insert(datos_upd).execute()
                     st.success(f"✅ ¡Nueva configuración guardada para {c_tela}!")
 
