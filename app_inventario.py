@@ -515,8 +515,16 @@ elif seccion == "⚙️ Configuración de Productos":
             if (p_crec + p_disp + p_emer) != 100:
                 st.error("La suma de los 3 porcentajes debe ser exactamente 100%.")
             else:
-                # Busca el registro reconociendo 'tela' o 'tipo_tela'
-                item_exist = next((x for x in cfg_data if x.get("tela") == c_tela or x.get("tipo_tela") == c_tela), None) if cfg_data else None
+                # 1. Obtener registros actualizados directamente de la base de datos
+                registros = supabase.table("configuracion_productos").select("*").execute().data or []
+                
+                # 2. Identificar el nombre exacto de la columna de tela
+                col_nombre = "tela"
+                if registros and "tipo_tela" in registros[0]:
+                    col_nombre = "tipo_tela"
+                
+                # 3. Buscar si ya existe la tela seleccionada
+                existente = next((r for r in registros if str(r.get(col_nombre, "")).strip().lower() == c_tela.strip().lower()), None)
 
                 datos_upd = {
                     "costo_fabricacio": c_costo,
@@ -526,14 +534,14 @@ elif seccion == "⚙️ Configuración de Productos":
                     "porcentaje_emer": p_emer
                 }
 
-                if item_exist:
-                    # Actualiza la fila existente por su ID
-                    supabase.table("configuracion_productos").update(datos_upd).eq("id", item_exist["id"]).execute()
-                    st.success(f"Parámetros actualizados correctamente para la tela {c_tela}.")
+                if existente:
+                    # Actualización forzada mediante el ID único del registro
+                    supabase.table("configuracion_productos").update(datos_upd).eq("id", existente["id"]).execute()
+                    st.success(f"✅ ¡Parámetros de {c_tela} actualizados correctamente!")
                 else:
-                    # Si de verdad no existe, lo crea
-                    datos_upd["tela"] = c_tela
+                    # Inserción limpia asignando la columna correcta
+                    datos_upd[col_nombre] = c_tela
                     supabase.table("configuracion_productos").insert(datos_upd).execute()
-                    st.success(f"Nueva configuración creada para {c_tela}.")
+                    st.success(f"✅ ¡Nueva configuración guardada para {c_tela}!")
 
                 st.rerun()
