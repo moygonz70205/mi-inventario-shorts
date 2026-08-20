@@ -515,10 +515,10 @@ elif seccion == "⚙️ Configuración de Productos":
             if (p_crec + p_disp + p_emer) != 100:
                 st.error("La suma de los 3 porcentajes debe ser exactamente 100%.")
             else:
-                item_exist = next((x for x in cfg_data if x.get("tela") == c_tela), None) if cfg_data else None
+                # Busca el registro reconociendo 'tela' o 'tipo_tela'
+                item_exist = next((x for x in cfg_data if x.get("tela") == c_tela or x.get("tipo_tela") == c_tela), None) if cfg_data else None
 
                 datos_upd = {
-                    "tela": c_tela,
                     "costo_fabricacio": c_costo,
                     "precio_venta": c_precio,
                     "porcentaje_creci": p_crec,
@@ -527,9 +527,13 @@ elif seccion == "⚙️ Configuración de Productos":
                 }
 
                 if item_exist:
+                    # Actualiza la fila existente por su ID
                     supabase.table("configuracion_productos").update(datos_upd).eq("id", item_exist["id"]).execute()
+                    st.success(f"Parámetros actualizados correctamente para la tela {c_tela}.")
                 else:
+                    # Si de verdad no existe, lo crea
+                    datos_upd["tela"] = c_tela
                     supabase.table("configuracion_productos").insert(datos_upd).execute()
+                    st.success(f"Nueva configuración creada para {c_tela}.")
 
-                st.success("Matriz de costos actualizada correctamente.")
                 st.rerun()
