@@ -11,7 +11,7 @@ supabase = create_client(URL, KEY)
 
 st.set_page_config(page_title="Taller Shorts - Gestión Empresarial", layout="wide")
 
-# --- MENÚ LATERAL ---
+# --- MENÚ LATERAL FORMAL ---
 with st.sidebar:
     st.title("🧵 Taller Shorts")
     st.caption("Sistema Integrado de Control Operativo y Financiero")
@@ -64,7 +64,7 @@ if seccion == "🏠 Panel de Control Operativo":
         st.dataframe(pd.DataFrame(pocos_prod)[["modelo", "tela", "color", "talla", "cantidad"]], use_container_width=True)
 
 # ============================================================
-# 2. INVENTARIO Y ENTRADA DE INVENTARIO
+# 2. INVENTARIO Y ENTRADA DE INVENTARIO (Puntos 1, 2, 3, 4, 5, 10)
 # ============================================================
 elif seccion == "📦 Inventario y Entrada de Inventario":
     st.header("📦 Gestión de Almacén e Ingresos")
@@ -75,88 +75,135 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
 
     with tab1:
         st.subheader("Resumen General de Existencias por Talla")
-        datos = supabase.table("inventario_ropa").select("*").execute().data
+        datos_raw = supabase.table("inventario_ropa").select("*").execute().data
 
-        if datos:
-            df = pd.DataFrame(datos)
-            resumen_tallas = df.groupby(["modelo", "tela", "talla"])["cantidad"].sum().unstack(fill_value=0)
+        if datos_raw:
+            df_raw = pd.DataFrame(datos_raw)
+            # Sanitización visual: limpiar espacios y estandarizar mayúsculas/minúsculas
+            df_raw["modelo"] = df_raw["modelo"].astype(str).str.strip().str.title()
+            df_raw["tela"] = df_raw["tela"].astype(str).str.strip().str.title()
+            df_raw["color"] = df_raw["color"].astype(str).str.strip().str.title()
+            df_raw["talla"] = df_raw["talla"].astype(str).str.strip().str.upper()
+
+            # Punto 4: Agrupamiento automático para evitar duplicados en pantalla
+            df_grouped = df_raw.groupby(["modelo", "tela", "color", "talla", "precio"], as_index=False)["cantidad"].sum()
+
+            # Punto 1: Totales por Categoría / Tipo de Producto (Short, Playeras, Pants, etc.)
+            st.markdown("### 📊 Totales Globales por Tipo de Producto")
+            totales_modelo = df_grouped.groupby("modelo")["cantidad"].sum()
+            
+            total_piezas_general = totales_modelo.sum()
+            
+            # Mostrar Métricas resumen
+            cols_mod = st.columns(len(totales_modelo) + 1 if len(totales_modelo) > 0 else 1)
+            cols_mod[0].metric(" Total Piezas Global", f"{total_piezas_general} pcs")
+            for idx, (mod_nombre, mod_cant) in enumerate(totales_modelo.items()):
+                cols_mod[idx + 1].metric(f"Total {mod_nombre}s", f"{mod_cant} pcs")
+
+            st.divider()
+
+            resumen_tallas = df_grouped.groupby(["modelo", "tela", "talla"])["cantidad"].sum().unstack(fill_value=0)
             st.dataframe(resumen_tallas, use_container_width=True)
             
             st.divider()
-            st.subheader("Consulta Detallada de Inventario")
+            st.subheader("Consulta Detallada de Inventario (Consolidado)")
             busqueda = st.text_input("🔍 Buscar por Modelo, Tela, Color o Talla")
+            
+            df_display = df_grouped.copy()
             if busqueda:
                 b = busqueda.lower()
-                df = df[
-                    df["modelo"].astype(str).str.lower().str.contains(b) |
-                    df["tela"].astype(str).str.lower().str.contains(b) |
-                    df["color"].astype(str).str.lower().str.contains(b) |
-                    df["talla"].astype(str).str.lower().str.contains(b)
+                df_display = df_display[
+                    df_display["modelo"].str.lower().str.contains(b) |
+                    df_display["tela"].str.lower().str.contains(b) |
+                    df_display["color"].str.lower().str.contains(b) |
+                    df_display["talla"].str.lower().str.contains(b)
                 ]
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df_display, use_container_width=True)
 
+            # Punto 5: Ajuste de Stock simplificado e intuitivo
             st.divider()
-            st.subheader("🛠️ Modificar o Eliminar Registro de Almacén")
-            id_mod = st.number_input("Ingresa el ID del registro a modificar/eliminar", min_value=1, step=1)
-            prod_mod = next((p for p in datos if p["id"] == id_mod), None)
+            st.subheader("🛠️ Ajuste Directo de Stock")
+            st.caption("Modifica únicamente la cantidad final en caso de mermas o recuentos de almacén.")
+            
+            registros_opciones = {
+                f"ID #{r['id']} - {r['modelo']} | {r['tela']} | {r['color']} | Talla: {r['talla']} (Actual: {r['cantidad']} pcs)": r 
+                for r in datos_raw
+            }
+            if registros_opciones:
+                sel_reg_key = st.selectbox("Selecciona el registro específico a ajustar", list(registros_opciones.keys()))
+                reg_sel = registros_opciones[sel_reg_key]
 
-            if prod_mod:
-                with st.form("form_edit_inv"):
-                    st.write(f"Editando ID #{prod_mod['id']}: {prod_mod['modelo']} {prod_mod['tela']}")
-                    e1, e2, e3 = st.columns(3)
-                    nm = e1.text_input("Modelo", prod_mod["modelo"])
-                    nt = e1.text_input("Tela", prod_mod["tela"])
-                    nc = e2.text_input("Color", prod_mod["color"])
-                    nz = e2.text_input("Talla", prod_mod["talla"])
-                    nq = e3.number_input("Cantidad", min_value=0, value=prod_mod["cantidad"])
-                    np_v = e3.number_input("Precio", min_value=0.0, value=float(prod_mod["precio"]))
-
-                    if st.form_submit_button("Guardar Cambios"):
-                        supabase.table("inventario_ropa").update({
-                            "modelo": nm, "tela": nt, "color": nc, "talla": nz, "cantidad": nq, "precio": np_v
-                        }).eq("id", id_mod).execute()
-                        st.success("Registro actualizado correctamente.")
-                        st.rerun()
-
-                if st.button("❌ Eliminar este Registro"):
-                    supabase.table("inventario_ropa").delete().eq("id", id_mod).execute()
-                    st.success("Registro eliminado exitosamente.")
+                col_aj1, col_aj2 = st.columns(2)
+                nueva_cant = col_aj1.number_input("Nueva cantidad total en Stock", min_value=0, value=int(reg_sel["cantidad"]))
+                
+                if col_aj2.button("💾 Guardar Ajuste de Stock", type="primary"):
+                    supabase.table("inventario_ropa").update({"cantidad": nueva_cant}).eq("id", reg_sel["id"]).execute()
+                    
+                    st.success(f" Stock actualizado. {reg_sel['modelo']} {reg_sel['color']} ({reg_sel['talla']}): Antes {reg_sel['cantidad']} pcs ➔ Ahora {nueva_cant} pcs.")
+                    time.sleep(2.0)
                     st.rerun()
         else:
             st.info("Sin mercancía registrada en inventario.")
 
     with tab2:
         st.subheader("Ingreso de Mercancía Producida")
+        
+        datos_inv_exist = supabase.table("inventario_ropa").select("*").execute().data
         configs = supabase.table("configuracion_productos").select("*").execute().data
 
-        with st.form("form_entrada_mercancia"):
-            col1, col2 = st.columns(2)
-            with col1:
-                e_modelo = st.text_input("Modelo", "Short")
-                e_tela = st.selectbox("Tela", ["Liso", "Camuflaje"])
-                e_color = st.text_input("Color", "Negro")
-            with col2:
-                e_talla = st.radio("Talla", ["CH", "M", "G"], horizontal=True)
-                e_cant = st.number_input("Cantidad de Piezas", min_value=1, value=1)
-                
-                cfg_item = next((c for c in configs if c.get("tela") == e_tela), None) if configs else None
-                default_precio = cfg_item.get("precio_venta", 65.0) if cfg_item else 65.0
-                default_costo = cfg_item.get("costo_fabricacion", 30.0) if cfg_item else 30.0
-                
-                e_precio = st.number_input("Precio de Venta Unitario ($)", min_value=0.0, value=float(default_precio))
+        # Punto 2: Selección entre mercancía existente y dar de alta un producto nuevo
+        modo_ingreso = st.radio("Tipo de Ingreso", ["Añadir a Variantes Existentes", "➕ Registrar Nueva Variante / Producto Nuevo"], horizontal=True)
 
-            if st.form_submit_button("📥 Registrar Entrada al Inventario"):
-                inv_actual = supabase.table("inventario_ropa").select("*").execute().data
-                existe = next((p for p in inv_actual if p["modelo"]==e_modelo and p["tela"]==e_tela and p["color"]==e_color and p["talla"]==e_talla), None)
+        if modo_ingreso == "Añadir a Variantes Existentes" and datos_inv_exist:
+            df_ex = pd.DataFrame(datos_inv_exist)
+            df_ex["modelo"] = df_ex["modelo"].astype(str).str.strip().str.title()
+            df_ex["tela"] = df_ex["tela"].astype(str).str.strip().str.title()
+            df_ex["color"] = df_ex["color"].astype(str).str.strip().str.title()
+
+            c1, c2, c3 = st.columns(3)
+            list_mod = sorted(df_ex["modelo"].unique())
+            e_modelo = c1.selectbox("Modelo", list_mod)
+
+            df_mod = df_ex[df_ex["modelo"] == e_modelo]
+            list_tel = sorted(df_mod["tela"].unique())
+            e_tela = c2.selectbox("Tela", list_tel)
+
+            df_tel = df_mod[df_mod["tela"] == e_tela]
+            list_col = sorted(df_tel["color"].unique())
+            e_color = c3.selectbox("Color", list_col)
+
+            # Punto 3: Preservar la talla seleccionada si el usuario la cambia
+            if "talla_entrada_fija" not in st.session_state:
+                st.session_state["talla_entrada_fija"] = "CH"
+
+            tallas_posibles = ["CH", "M", "G", "XL"]
+            talla_index = tallas_posibles.index(st.session_state["talla_entrada_fija"]) if st.session_state["talla_entrada_fija"] in tallas_posibles else 0
+
+            e_talla = st.radio("Talla", tallas_posibles, index=talla_index, horizontal=True, key="radio_talla_ent")
+            st.session_state["talla_entrada_fija"] = e_talla
+
+            col_cant, col_btn = st.columns(2)
+            e_cant = col_cant.number_input("Cantidad de Piezas a Sumar", min_value=1, value=1)
+
+            cfg_item = next((c for c in configs if str(c.get("modelo")).strip().lower() == e_modelo.lower() and str(c.get("tela")).strip().lower() == e_tela.lower()), None) if configs else None
+            default_precio = cfg_item.get("precio_venta", 65.0) if cfg_item else 65.0
+            default_costo = cfg_item.get("costo_fabricacion", 30.0) if cfg_item else 30.0
+
+            if st.button("📥 Registrar Entrada al Inventario", type="primary"):
+                existe = next((p for p in datos_inv_exist if p["modelo"].strip().title() == e_modelo and p["tela"].strip().title() == e_tela and p["color"].strip().title() == e_color and p["talla"].strip().upper() == e_talla), None)
 
                 if existe:
+                    cant_anterior = existe["cantidad"]
+                    cant_nueva = cant_anterior + e_cant
                     supabase.table("inventario_ropa").update({
-                        "cantidad": existe["cantidad"] + e_cant, "precio": e_precio
+                        "cantidad": cant_nueva, "precio": default_precio
                     }).eq("id", existe["id"]).execute()
                     prod_id = existe["id"]
                 else:
+                    cant_anterior = 0
+                    cant_nueva = e_cant
                     ins = supabase.table("inventario_ropa").insert({
-                        "modelo": e_modelo, "tela": e_tela, "color": e_color, "talla": e_talla, "cantidad": e_cant, "precio": e_precio
+                        "modelo": e_modelo, "tela": e_tela, "color": e_color, "talla": e_talla, "cantidad": e_cant, "precio": default_precio
                     }).execute()
                     prod_id = ins.data[0]["id"] if ins.data else None
 
@@ -166,17 +213,60 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
                     "cantidad": e_cant,
                     "monto": e_cant * default_costo,
                     "costo_unitario": default_costo,
-                    "precio_unitario": e_precio,
+                    "precio_unitario": default_precio,
                     "producto_id": prod_id
                 }).execute()
 
-                st.success(f"✅ ¡Entrada Registrada! Se añadieron {e_cant} piezas de {e_modelo} {e_tela} ({e_color} / {e_talla}).")
+                # Punto 10: Notificación/Globo descriptivo de 2 segundos
+                st.success(f" Inventario Actualizado | Stock actualizado: Tenías {cant_anterior} pcs + Agregaste {e_cant} pcs = Total {cant_nueva} pcs ({e_modelo} {e_tela} {e_color} {e_talla}). Movimiento Exitoso.")
                 st.balloons()
-                time.sleep(1.5)
+                time.sleep(2.0)
                 st.rerun()
 
+        else:
+            with st.form("form_alta_nuevo"):
+                st.info("Ingresa los datos del nuevo tipo de prenda o color que no existe actualmente en catálogo.")
+                col_n1, col_n2 = st.columns(2)
+                n_modelo = col_n1.text_input("Tipo de Producto / Modelo", "Short")
+                n_tela = col_n1.text_input("Tipo de Tela", "Liso")
+                n_color = col_n2.text_input("Color", "Negro")
+                n_talla = col_n2.radio("Talla", ["CH", "M", "G", "XL"], horizontal=True)
+                
+                n_cant = st.number_input("Cantidad de Piezas Iniciales", min_value=1, value=1)
+                n_precio = st.number_input("Precio de Venta Unitario ($)", min_value=0.0, value=65.0)
+                n_costo = st.number_input("Costo de Fabricación Unitario ($)", min_value=0.0, value=30.0)
+
+                if st.form_submit_button(" Registrar Nueva Entrada y Crear Producto"):
+                    # Normalizar cadenas
+                    n_modelo_clean = n_modelo.strip().title()
+                    n_tela_clean = n_tela.strip().title()
+                    n_color_clean = n_color.strip().title()
+                    n_talla_clean = n_talla.strip().upper()
+
+                    ins = supabase.table("inventario_ropa").insert({
+                        "modelo": n_modelo_clean, "tela": n_tela_clean, "color": n_color_clean, "talla": n_talla_clean, "cantidad": n_cant, "precio": n_precio
+                    }).execute()
+                    
+                    prod_id = ins.data[0]["id"] if ins.data else None
+
+                    supabase.table("historial").insert({
+                        "tipo": "ENTRADA",
+                        "detalle": f"Entrada Nueva: {n_modelo_clean} {n_tela_clean} {n_color_clean} {n_talla_clean}",
+                        "cantidad": n_cant,
+                        "monto": n_cant * n_costo,
+                        "costo_unitario": n_costo,
+                        "precio_unitario": n_precio,
+                        "producto_id": prod_id
+                    }).execute()
+
+                    # Punto 10: Globo visual informativo
+                    st.success(f" Inventario Actualizado | Stock inicial: {n_cant} pcs agregadas de {n_modelo_clean} {n_tela_clean} ({n_color_clean} / {n_talla_clean}). Movimiento Exitoso.")
+                    st.balloons()
+                    time.sleep(2.0)
+                    st.rerun()
+
 # ============================================================
-# 3. MÓDULO DE VENTAS
+# 3. MÓDULO DE VENTAS (Puntos 3, 6, 10)
 # ============================================================
 elif seccion == "💰 Módulo de Ventas":
     st.header("💰 Módulo de Ventas")
@@ -187,6 +277,13 @@ elif seccion == "💰 Módulo de Ventas":
     configs = supabase.table("configuracion_productos").select("*").execute().data
 
     if datos:
+        # Normalizar datos para evitar duplicados en listas de selección
+        for d in datos:
+            d["modelo"] = str(d["modelo"]).strip().title()
+            d["tela"] = str(d["tela"]).strip().title()
+            d["color"] = str(d["color"]).strip().title()
+            d["talla"] = str(d["talla"]).strip().upper()
+
         c1, c2, c3 = st.columns(3)
         with c1:
             modelos = sorted(list(set([d["modelo"] for d in datos])))
@@ -200,35 +297,52 @@ elif seccion == "💰 Módulo de Ventas":
 
         st.subheader("Selecciona Talla")
         tallas_disp = sorted(list(set([d["talla"] for d in datos if d["modelo"] == modelo and d["tela"] == tela and d["color"] == color])))
-        talla = st.radio("Talla Disponible", tallas_disp, horizontal=True)
 
-        prod = next((p for p in datos if p["modelo"]==modelo and p["tela"]==tela and p["color"]==color and p["talla"]==talla), None)
+        # Punto 3 y 6: Mantener la talla previa si existe en el nuevo color, o cambiar automáticamente si no existe
+        if "talla_venta_fija" not in st.session_state:
+            st.session_state["talla_venta_fija"] = tallas_disp[0] if tallas_disp else "CH"
 
-        if prod:
+        if st.session_state["talla_venta_fija"] in tallas_disp:
+            talla_act_idx = tallas_disp.index(st.session_state["talla_venta_fija"])
+        else:
+            talla_act_idx = 0
+            st.session_state["talla_venta_fija"] = tallas_disp[0] if tallas_disp else "CH"
+
+        talla = st.radio("Talla Disponible", tallas_disp, index=talla_act_idx, horizontal=True, key="radio_talla_vent")
+        st.session_state["talla_venta_fija"] = talla
+
+        # Agrupar registros duplicados exactos en caso de que existan en la base
+        prods_coincidentes = [p for p in datos if p["modelo"]==modelo and p["tela"]==tela and p["color"]==color and p["talla"]==talla]
+        
+        if prods_coincidentes:
+            cant_total_stock = sum(p["cantidad"] for p in prods_coincidentes)
+            precio_unitario = prods_coincidentes[0]["precio"]
+            prod_principal = prods_coincidentes[0]
+
             st.divider()
             col_info1, col_info2 = st.columns(2)
             
-            if prod["cantidad"] <= 0:
+            # Punto 6: Indicador de semáforo de Stock
+            if cant_total_stock <= 0:
                 col_info1.error("❌ **PRODUCTO AGOTADO** - Stock: 0 piezas")
-            elif prod["cantidad"] <= 3:
-                col_info1.warning(f"⚠️ **STOCK BAJO** - Quedan solo {prod['cantidad']} pieza(s)")
+            elif cant_total_stock <= 3:
+                col_info1.warning(f"⚠️ **STOCK BAJO** - Quedan solo {cant_total_stock} pieza(s)")
             else:
-                col_info1.success(f"📦 **Stock Disponible:** {prod['cantidad']} pieza(s)")
+                col_info1.success(f"📦 **Stock Disponible:** {cant_total_stock} pieza(s)")
 
-            col_info2.info(f"💲 **Precio Unitario:** ${prod['precio']:.2f}")
+            col_info2.info(f"💲 **Precio Unitario:** ${precio_unitario:.2f}")
 
-            if prod["cantidad"] > 0:
-                cant_vender = st.number_input("Cantidad a vender", min_value=1, max_value=prod["cantidad"], value=1)
+            if cant_total_stock > 0:
+                cant_vender = st.number_input("Cantidad a vender", min_value=1, max_value=cant_total_stock, value=1)
                 
-                cfg_item = next((c for c in configs if c.get("tela") == tela), None) if configs else None
+                cfg_item = next((c for c in configs if str(c.get("modelo")).strip().lower() == modelo.lower() and str(c.get("tela")).strip().lower() == tela.lower()), None) if configs else None
                 costo_fab = cfg_item.get("costo_fabricacion", 30.0) if cfg_item else 30.0
                 
                 pct_crec = (cfg_item.get("porcentaje_crecimiento", 60) / 100) if cfg_item else 0.60
-                # CORREGIDO: Se ajusta el nombre a 'porcentaje_disponible'
-                pct_disp = (cfg_item.get("porcentaje_disponible", 30) / 100) if cfg_item else 0.30
+                pct_disp = (cfg_item.get("porcentaje_disponibilidad", 30) / 100) if cfg_item else 0.30
                 pct_emer = (cfg_item.get("porcentaje_emergencia", 10) / 100) if cfg_item else 0.10
 
-                monto_total = cant_vender * prod["precio"]
+                monto_total = cant_vender * precio_unitario
                 costo_total = cant_vender * costo_fab
                 utilidad_total = monto_total - costo_total
 
@@ -240,7 +354,14 @@ elif seccion == "💰 Módulo de Ventas":
                 st.write(f"**Desglose estimado:** Total: **${monto_total:,.2f}** | Capital + Crecimiento: **${c_reinv_total:,.2f}** | Rendimiento: **${c_libre:,.2f}** | Reserva: **${c_emerg:,.2f}**")
 
                 if st.button("🛒 Confirmar y Registrar Venta", type="primary"):
-                    supabase.table("inventario_ropa").update({"cantidad": prod["cantidad"] - cant_vender}).eq("id", prod["id"]).execute()
+                    # Descontar stock (atendiendo duplicados si existían)
+                    cant_pendiente = cant_vender
+                    for p_sub in prods_coincidentes:
+                        if cant_pendiente <= 0:
+                            break
+                        descuento = min(p_sub["cantidad"], cant_pendiente)
+                        supabase.table("inventario_ropa").update({"cantidad": p_sub["cantidad"] - descuento}).eq("id", p_sub["id"]).execute()
+                        cant_pendiente -= descuento
 
                     fin = supabase.table("finanzas").select("*").eq("id", 1).execute().data
                     if fin:
@@ -261,20 +382,21 @@ elif seccion == "💰 Módulo de Ventas":
                         "cantidad": cant_vender,
                         "monto": monto_total,
                         "costo_unitario": costo_fab,
-                        "precio_unitario": prod["precio"],
-                        "utilidad_unitaria": prod["precio"] - costo_fab,
-                        "producto_id": prod["id"]
+                        "precio_unitario": precio_unitario,
+                        "utilidad_unitaria": precio_unitario - costo_fab,
+                        "producto_id": prod_principal["id"]
                     }).execute()
 
-                    st.success("✅ ¡Venta registrada exitosamente!")
+                    # Punto 10: Notificación/Globo detallado de 2 segundos
+                    st.success(f" Venta Exitosa | Se vendieron {cant_vender} piezas de {modelo} {tela} ({color} / {talla}) por un total de ${monto_total:,.2f} MXN.")
                     st.balloons()
-                    time.sleep(1.5)
+                    time.sleep(2.0)
                     st.rerun()
     else:
         st.info("Sin existencias registradas en inventario.")
 
 # ============================================================
-# 4. TESORERÍA Y FINANZAS
+# 4. TESORERÍA Y FINANZAS (Punto 7)
 # ============================================================
 elif seccion == "💸 Tesorería y Finanzas":
     st.header("💸 Tesorería y Capital de Trabajo")
@@ -365,6 +487,7 @@ elif seccion == "💸 Tesorería y Finanzas":
                     }).execute()
 
                     st.success("✅ Transferencia realizada y respaldada en base de datos.")
+                    time.sleep(2.0)
                     st.rerun()
                 else:
                     st.error("Fondos insuficientes en la cuenta de origen seleccionada.")
@@ -400,12 +523,13 @@ elif seccion == "💸 Tesorería y Finanzas":
                 }).execute()
 
                 st.success("Egreso registrado correctamente.")
+                time.sleep(2.0)
                 st.rerun()
             else:
                 st.error("Fondos insuficientes en la cuenta seleccionada.")
 
 # ============================================================
-# 5. HISTORIAL DE MOVIMIENTOS
+# 5. HISTORIAL DE MOVIMIENTOS (Punto 8)
 # ============================================================
 elif seccion == "📜 Historial de Movimientos":
     st.header("📜 Bitácora de Auditoría y Movimientos")
@@ -434,7 +558,7 @@ elif seccion == "📜 Historial de Movimientos":
         st.info("Sin movimientos registrados en la bitácora.")
 
 # ============================================================
-# 6. REPORTE DEL NEGOCIO
+# 6. REPORTE DEL NEGOCIO (Punto 8)
 # ============================================================
 elif seccion == "📊 Reporte del Negocio":
     st.header("📊 Analítica e Inteligencia de Negocio")
@@ -469,7 +593,7 @@ elif seccion == "📊 Reporte del Negocio":
         st.info("No existen registros de ventas para elaborar informes.")
 
 # ============================================================
-# 7. CONFIGURACIÓN DE PRODUCTOS
+# 7. CONFIGURACIÓN DE PRODUCTOS (Punto 9)
 # ============================================================
 elif seccion == "⚙️ Configuración de Productos":
     st.header("⚙️ Matriz de Costos y Margen de Utilidad")
@@ -477,17 +601,27 @@ elif seccion == "⚙️ Configuración de Productos":
     st.divider()
 
     cfg_data = supabase.table("configuracion_productos").select("*").execute().data
+    inv_data = supabase.table("inventario_ropa").select("*").execute().data
+
+    # Punto 9: Soporte dinámico para múltiples tipos de producto (Short, Playera, Pants, etc.)
+    modelos_disponibles = ["Short", "Playera", "Pants", "Sudadera"]
+    if inv_data:
+        modelos_disponibles = sorted(list(set(modelos_disponibles + [str(i["modelo"]).strip().title() for i in inv_data])))
 
     if cfg_data:
-        st.subheader("Matriz Actual")
+        st.subheader("Matriz Actual de Parámetros")
         st.dataframe(pd.DataFrame(cfg_data), use_container_width=True)
         st.divider()
 
-    st.subheader("Actualizar Parámetros por Tela")
+    st.subheader("Actualizar Parámetros por Producto y Tela")
     with st.form("form_config"):
-        c_tela = st.selectbox("Selecciona Tela a Configurar", ["Liso", "Camuflaje"])
-        c_costo = st.number_input("Costo de Fabricación ($)", min_value=0.0, value=38.0 if c_tela == "Liso" else 42.0)
-        c_precio = st.number_input("Precio de Venta ($)", min_value=0.0, value=65.0)
+        col_cfg1, col_cfg2 = st.columns(2)
+        
+        c_modelo = col_cfg1.selectbox("Selecciona Producto / Modelo", modelos_disponibles)
+        c_tela = col_cfg2.text_input("Tipo de Tela", "Liso")
+        
+        c_costo = col_cfg1.number_input("Costo de Fabricación ($)", min_value=0.0, value=30.0)
+        c_precio = col_cfg2.number_input("Precio de Venta ($)", min_value=0.0, value=65.0)
         
         st.markdown("**Porcentajes de Utilidad (%)**")
         col_p1, col_p2, col_p3 = st.columns(3)
@@ -495,11 +629,16 @@ elif seccion == "⚙️ Configuración de Productos":
         p_disp = col_p2.number_input("% Rendimiento Propietario", value=35)
         p_emer = col_p3.number_input("% Reserva Operativa", value=15)
 
-        if st.form_submit_button("Guardar Parámetros"):
+        if st.form_submit_button("Guardar Parámetros de Producto"):
             if (p_crec + p_disp + p_emer) != 100:
                 st.error("La suma de los 3 porcentajes debe ser exactamente 100%.")
             else:
+                c_modelo_clean = c_modelo.strip().title()
+                c_tela_clean = c_tela.strip().title()
+
                 datos_upd = {
+                    "modelo": c_modelo_clean,
+                    "tela": c_tela_clean,
                     "costo_fabricacion": c_costo,
                     "precio_venta": c_precio,
                     "porcentaje_crecimiento": p_crec,
@@ -507,16 +646,14 @@ elif seccion == "⚙️ Configuración de Productos":
                     "porcentaje_emergencia": p_emer
                 }
 
-                res_live = supabase.table("configuracion_productos").select("*").eq("tela", c_tela).execute().data
+                res_live = supabase.table("configuracion_productos").select("*").eq("modelo", c_modelo_clean).eq("tela", c_tela_clean).execute().data
 
                 if res_live:
                     supabase.table("configuracion_productos").update(datos_upd).eq("id", res_live[0]["id"]).execute()
-                    st.success(f"✅ ¡Parámetros de {c_tela} actualizados correctamente!")
+                    st.success(f" Parámetros de {c_modelo_clean} ({c_tela_clean}) actualizados correctamente.")
                 else:
-                    datos_upd["tela"] = c_tela
-                    datos_upd["modelo"] = "Short"
                     supabase.table("configuracion_productos").insert(datos_upd).execute()
-                    st.success(f"✅ ¡Nueva configuración guardada para {c_tela}!")
+                    st.success(f" Nueva configuración guardada para {c_modelo_clean} ({c_tela_clean}).")
 
-                time.sleep(1)
+                time.sleep(1.5)
                 st.rerun()
