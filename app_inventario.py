@@ -11,7 +11,7 @@ supabase = create_client(URL, KEY)
 
 st.set_page_config(page_title="Taller Shorts - Gestión Empresarial", layout="wide")
 
-# --- MENÚ LATERAL FORMAL ---
+# --- MENÚ LATERAL ---
 with st.sidebar:
     st.title("🧵 Taller Shorts")
     st.caption("Sistema Integrado de Control Operativo y Financiero")
@@ -224,7 +224,8 @@ elif seccion == "💰 Módulo de Ventas":
                 costo_fab = cfg_item.get("costo_fabricacion", 30.0) if cfg_item else 30.0
                 
                 pct_crec = (cfg_item.get("porcentaje_crecimiento", 60) / 100) if cfg_item else 0.60
-                pct_disp = (cfg_item.get("porcentaje_disponibilidad", 30) / 100) if cfg_item else 0.30
+                # CORREGIDO: Se ajusta el nombre a 'porcentaje_disponible'
+                pct_disp = (cfg_item.get("porcentaje_disponible", 30) / 100) if cfg_item else 0.30
                 pct_emer = (cfg_item.get("porcentaje_emergencia", 10) / 100) if cfg_item else 0.10
 
                 monto_total = cant_vender * prod["precio"]
@@ -506,7 +507,6 @@ elif seccion == "⚙️ Configuración de Productos":
                     "porcentaje_emergencia": p_emer
                 }
 
-                # Consulta directa en vivo a Supabase
                 res_live = supabase.table("configuracion_productos").select("*").eq("tela", c_tela).execute().data
 
                 if res_live:
