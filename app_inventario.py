@@ -79,22 +79,18 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
 
         if datos_raw:
             df_raw = pd.DataFrame(datos_raw)
-            # Sanitización visual: limpiar espacios y estandarizar mayúsculas/minúsculas
             df_raw["modelo"] = df_raw["modelo"].astype(str).str.strip().str.title()
             df_raw["tela"] = df_raw["tela"].astype(str).str.strip().str.title()
             df_raw["color"] = df_raw["color"].astype(str).str.strip().str.title()
             df_raw["talla"] = df_raw["talla"].astype(str).str.strip().str.upper()
 
-            # Agrupamiento automático para evitar duplicados en pantalla
             df_grouped = df_raw.groupby(["modelo", "tela", "color", "talla", "precio"], as_index=False)["cantidad"].sum()
 
-            # Totales por Categoría / Tipo de Producto
             st.markdown("### 📊 Totales Globales por Tipo de Producto")
             totales_modelo = df_grouped.groupby("modelo")["cantidad"].sum()
             
             total_piezas_general = totales_modelo.sum()
             
-            # Mostrar Métricas resumen
             cols_mod = st.columns(len(totales_modelo) + 1 if len(totales_modelo) > 0 else 1)
             cols_mod[0].metric(" Total Piezas Global", f"{total_piezas_general} pcs")
             for idx, (mod_nombre, mod_cant) in enumerate(totales_modelo.items()):
@@ -120,7 +116,6 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
                 ]
             st.dataframe(df_display, use_container_width=True)
 
-            # Ajuste de Stock simplificado
             st.divider()
             st.subheader("🛠️ Ajuste Directo de Stock")
             st.caption("Modifica únicamente la cantidad final en caso de mermas o recuentos de almacén.")
@@ -376,4 +371,7 @@ elif seccion == "💰 Módulo de Ventas":
                         "producto_id": prod_principal["id"]
                     }).execute()
 
-                    st.success(f"Venta Registrada con Éxito | Vendidas: {cant_vender}
+                    st.success(f"Venta Registrada con Éxito | Vendidas: {cant_vender} pcs ({modelo} {tela} {color} {talla}) - Total: ${monto_total:,.2f}")
+                    st.balloons()
+                    time.sleep(2.0)
+                    st.rerun()
