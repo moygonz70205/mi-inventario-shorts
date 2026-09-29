@@ -11,12 +11,31 @@ supabase = create_client(URL, KEY)
 
 st.set_page_config(page_title="Taller Shorts - Gestión Empresarial", layout="wide")
 
-# --- FUNCIONES DE APOYO Y ESTANDARIZACIÓN ---
+# --- FUNCIONES DE SANEAMIENTO Y LIMPIEZA DE TEXTO ---
 def estandarizar_texto(texto: str) -> str:
-    """Limpia espacios adicionales y aplica formato Title Case para evitar duplicados en BD."""
-    if not texto:
+    """Elimina espacios extras y estandariza a formato Title Case."""
+    if not texto or not isinstance(texto, str):
         return ""
     return " ".join(texto.strip().split()).title()
+
+def consolidar_inventario(datos_raw):
+    """Agrupa filas duplicadas en la base de datos sumando sus cantidades."""
+    if not datos_raw:
+        return pd.DataFrame(columns=["id", "modelo", "tela", "color", "talla", "cantidad", "precio"])
+    
+    df = pd.DataFrame(datos_raw)
+    df["modelo"] = df["modelo"].apply(estandarizar_texto)
+    df["tela"] = df["tela"].apply(estandarizar_texto)
+    df["color"] = df["color"].apply(estandarizar_texto)
+    df["talla"] = df["talla"].apply(lambda x: str(x).strip().upper())
+
+    # Agrupación estricta para eliminar duplicados visuales
+    df_consolidado = df.groupby(["modelo", "tela", "color", "talla"], as_index=False).agg({
+        "cantidad": "sum",
+        "precio": "first",
+        "id": "first"
+    })
+    return df_consolidado
 
 # --- MENÚ LATERAL ---
 with st.sidebar:
@@ -42,8 +61,11 @@ if seccion == "🏠 Panel de Control Operativo":
     st.divider()
 
     ventas = supabase.table("historial").select("*").eq("tipo", "VENTA").execute().data
-    inventario = supabase.table("inventario_ropa").select("*").execute().data
+    datos_inv_raw = supabase.table("inventario_ropa").select("*").execute().data
     finanzas = supabase.table("finanzas").select("*").eq("id", 1).execute().data
+
+    # Consolidar inventario para eliminar duplicados de la vista principal
+    df_inv_consolidado = consolidar_inventario(datos_inv_raw)
 
     hoy = datetime.today().strftime('%Y-%m-%d')
     ventas_hoy = sum(v["monto"] for v in ventas if str(v.get("created_at", "")).startswith(hoy)) if ventas else 0.0
@@ -52,8 +74,8 @@ if seccion == "🏠 Panel de Control Operativo":
     d_libre = finanzas[0].get("dinero_libre", 0.0) if finanzas else 0.0
     d_emerg = finanzas[0].get("dinero_emergencia", 0.0) if finanzas else 0.0
 
-    total_inv_valor = sum(p["cantidad"] * p["precio"] for p in inventario) if inventario else 0.0
-    pocos_prod = [p for p in inventario if p["cantidad"] <= 3] if inventario else []
+    total_inv_valor = (df_inv_consolidado["cantidad"] * df_inv_consolidado["precio"]).sum() if not df_inv_consolidado.empty else 0.0
+    pocos_prod = df_inv_consolidado[df_inv_consolidado["cantidad"] <= 3] if not df_inv_consolidado.empty else pd.DataFrame()
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Ventas del Día", f"${ventas_hoy:,.2f}")
@@ -64,12 +86,11 @@ if seccion == "🏠 Panel de Control Operativo":
     st.subheader("📦 Estado General de Inventario")
     col_a, col_b = st.columns(2)
     col_a.metric("Valor Comercial en Stock", f"${total_inv_valor:,.2f}")
-    col_b.metric("Alertas de Stock Bajo (≤ 3 pcs)", f"{len(pocos_prod)} prendas")
+    col_b.metric("Alertas de Stock Bajo (≤ 3 pcs)", f"{len(pocos_prod)} variantes")
 
-    if pocos_prod:
+    if not pocos_prod.empty:
         st.warning("⚠️ **Atención:** Las siguientes prendas requieren reabastecimiento urgente:")
-        df_pocos = pd.DataFrame(pocos_prod)[["modelo", "tela", "color", "talla", "cantidad"]]
-        st.dataframe(df_pocos, use_container_width=True)
+        st.dataframe(pocos_prod[["modelo", "tela", "color", "talla", "cantidad"]], use_container_width=True)
 
 # ============================================================
 # 2. INVENTARIO Y ENTRADA DE INVENTARIO
@@ -86,22 +107,7 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
     ])
 
     datos_raw = supabase.table("inventario_ropa").select("*").execute().data
-
-    # Consolidación a nivel UI para evitar visualizar filas duplicadas
-    if datos_raw:
-        df_raw = pd.DataFrame(datos_raw)
-        df_raw["modelo"] = df_raw["modelo"].apply(estandarizar_texto)
-        df_raw["tela"] = df_raw["tela"].apply(estandarizar_texto)
-        df_raw["color"] = df_raw["color"].apply(estandarizar_texto)
-        df_raw["talla"] = df_raw["talla"].apply(str.upper)
-
-        df_inv = df_raw.groupby(["modelo", "tela", "color", "talla"], as_index=False).agg({
-            "cantidad": "sum",
-            "precio": "first",
-            "id": "first"
-        })
-    else:
-        df_inv = pd.DataFrame(columns=["id", "modelo", "tela", "color", "talla", "cantidad", "precio"])
+    df_inv = consolidar_inventario(datos_raw)
 
     # ---------------- TAB 1: CONSULTA DE INVENTARIO ----------------
     with tab1:
@@ -207,7 +213,7 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
             e_precio = col_add2.number_input("Precio de Venta Unitario ($)", min_value=0.0, value=float(def_precio))
 
             if st.button("📥 Registrar Entrada al Inventario", type="primary"):
-                existe = next((p for p in datos_raw if estandarizar_texto(p["modelo"]) == e_mod and estandarizar_texto(p["tela"]) == e_tel and estandarizar_texto(p["color"]) == e_col and str(p["talla"]).upper() == e_tal), None)
+                existe = next((p for p in datos_raw if estandarizar_texto(p["modelo"]) == e_mod and estandarizar_texto(p["tela"]) == e_tel and estandarizar_texto(p["color"]) == e_col and str(p["talla"]).strip().upper() == e_tal), None)
 
                 if existe:
                     cant_final = existe["cantidad"] + e_cant
@@ -257,9 +263,9 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
                 m_clean = estandarizar_texto(n_modelo)
                 t_clean = estandarizar_texto(n_tela)
                 c_clean = estandarizar_texto(n_color)
-                z_clean = n_talla.upper()
+                z_clean = n_talla.strip().upper()
 
-                existe = next((p for p in datos_raw if estandarizar_texto(p["modelo"]) == m_clean and estandarizar_texto(p["tela"]) == t_clean and estandarizar_texto(p["color"]) == c_clean and str(p["talla"]).upper() == z_clean), None)
+                existe = next((p for p in datos_raw if estandarizar_texto(p["modelo"]) == m_clean and estandarizar_texto(p["tela"]) == t_clean and estandarizar_texto(p["color"]) == c_clean and str(p["talla"]).strip().upper() == z_clean), None)
 
                 if existe:
                     cant_tot = existe["cantidad"] + n_cant
@@ -298,25 +304,21 @@ elif seccion == "💰 Módulo de Ventas":
     configs = supabase.table("configuracion_productos").select("*").execute().data
 
     if datos:
-        df_v_raw = pd.DataFrame(datos)
-        df_v_raw["modelo"] = df_v_raw["modelo"].apply(estandarizar_texto)
-        df_v_raw["tela"] = df_v_raw["tela"].apply(estandarizar_texto)
-        df_v_raw["color"] = df_v_raw["color"].apply(estandarizar_texto)
-        df_v_raw["talla"] = df_v_raw["talla"].apply(str.upper)
+        df_vta = consolidar_inventario(datos)
 
         c1, c2, c3 = st.columns(3)
         with c1:
-            modelos = sorted(list(set(df_v_raw["modelo"])))
+            modelos = sorted(list(set(df_vta["modelo"])))
             modelo = st.selectbox("Selecciona Modelo", modelos)
         with c2:
-            telas = sorted(list(set(df_v_raw[df_v_raw["modelo"] == modelo]["tela"])))
+            telas = sorted(list(set(df_vta[df_vta["modelo"] == modelo]["tela"])))
             tela = st.selectbox("Selecciona Tela", telas)
         with c3:
-            colores = sorted(list(set(df_v_raw[(df_v_raw["modelo"] == modelo) & (df_v_raw["tela"] == tela)]["color"])))
+            colores = sorted(list(set(df_vta[(df_vta["modelo"] == modelo) & (df_vta["tela"] == tela)]["color"])))
             color = st.selectbox("Selecciona Color", colores)
 
         st.subheader("Selecciona Talla")
-        tallas_disp = sorted(list(set(df_v_raw[(df_v_raw["modelo"] == modelo) & (df_v_raw["tela"] == tela) & (df_v_raw["color"] == color)]["talla"])))
+        tallas_disp = sorted(list(set(df_vta[(df_vta["modelo"] == modelo) & (df_vta["tela"] == tela) & (df_vta["color"] == color)]["talla"])))
 
         if "talla_venta_sel" not in st.session_state or st.session_state["talla_venta_sel"] not in tallas_disp:
             st.session_state["talla_venta_sel"] = tallas_disp[0] if tallas_disp else "CH"
@@ -324,7 +326,7 @@ elif seccion == "💰 Módulo de Ventas":
         talla = st.radio("Talla Disponible", tallas_disp, index=tallas_disp.index(st.session_state["talla_venta_sel"]) if st.session_state["talla_venta_sel"] in tallas_disp else 0, key="radio_tal_vta", horizontal=True)
         st.session_state["talla_venta_sel"] = talla
 
-        prods = [p for p in datos if estandarizar_texto(p["modelo"]) == modelo and estandarizar_texto(p["tela"]) == tela and estandarizar_texto(p["color"]) == color and str(p["talla"]).upper() == talla]
+        prods = [p for p in datos if estandarizar_texto(p["modelo"]) == modelo and estandarizar_texto(p["tela"]) == tela and estandarizar_texto(p["color"]) == color and str(p["talla"]).strip().upper() == talla]
         
         cant_total_disp = sum(p["cantidad"] for p in prods)
         precio_vta = prods[0]["precio"] if prods else 0.0
