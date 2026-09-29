@@ -375,3 +375,7 @@ elif seccion == "💰 Módulo de Ventas":
                     st.balloons()
                     time.sleep(2.0)
                     st.rerun()
+
+# ============================================================
+# 4. TESORERÍA Y FINANZAS
+# ====================================
