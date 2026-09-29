@@ -379,3 +379,91 @@ elif seccion == "💰 Módulo de Ventas":
 # ============================================================
 # 4. TESORERÍA Y FINANZAS
 # ====================================
+elif seccion == "💸 Tesorería y Finanzas":
+    st.header("💸 Tesorería y Finanzas")
+    st.caption("Administración de bóvedas financieras, retiros y reinversiones.")
+    st.divider()
+
+    fin = supabase.table("finanzas").select("*").eq("id", 1).execute().data
+    if fin:
+        f = fin[0]
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Capital y Crecimiento", f"${f.get('dinero_reinversion', 0.0):,.2f}")
+        col2.metric("Rendimiento Propietario", f"${f.get('dinero_libre', 0.0):,.2f}")
+        col3.metric("Reserva Operativa", f"${f.get('dinero_emergencia', 0.0):,.2f}")
+
+        st.divider()
+        st.subheader("💸 Registrar Retiro o Ajuste de Bóveda")
+        boveda = st.selectbox("Selecciona Bóveda", ["dinero_reinversion", "dinero_libre", "dinero_emergencia"])
+        monto_retiro = st.number_input("Monto a Retirar ($)", min_value=0.0, value=0.0)
+        motivo = st.text_input("Motivo del Retiro", "Retiro de ganancias / Pago operativo")
+
+        if st.button("🔴 Registrar Retiro", type="primary"):
+            if monto_retiro > 0 and monto_retiro <= f.get(boveda, 0.0):
+                nuevo_saldo = f.get(boveda, 0.0) - monto_retiro
+                supabase.table("finanzas").update({boveda: nuevo_saldo}).eq("id", 1).execute()
+                
+                supabase.table("historial").insert({
+                    "tipo": "RETIRO",
+                    "detalle": f"Retiro Bóveda [{boveda}]: {motivo}",
+                    "monto": monto_retiro
+                }).execute()
+
+                st.success("Retiro ejecutado correctamente.")
+                time.sleep(1.5)
+                st.rerun()
+            else:
+                st.error("Monto inválido o superior al saldo disponible.")
+
+# ============================================================
+# 5. HISTORIAL DE MOVIMIENTOS
+# ============================================================
+elif seccion == "📜 Historial de Movimientos":
+    st.header("📜 Historial de Movimientos")
+    st.caption("Bitácora completa de auditoría sobre ventas, entradas y retiros.")
+    st.divider()
+
+    hist = supabase.table("historial").select("*").order("id", desc=True).execute().data
+    if hist:
+        df_h = pd.DataFrame(hist)
+        st.dataframe(df_h, use_container_width=True)
+    else:
+        st.info("No hay movimientos registrados.")
+
+# ============================================================
+# 6. REPORTE DEL NEGOCIO
+# ============================================================
+elif seccion == "📊 Reporte del Negocio":
+    st.header("📊 Reporte del Negocio")
+    st.caption("Métricas clave de rendimiento, ventas consolidadas e inventario.")
+    st.divider()
+
+    ventas = supabase.table("historial").select("*").eq("tipo", "VENTA").execute().data
+    if ventas:
+        df_v = pd.DataFrame(ventas)
+        monto_total_ventas = df_v["monto"].sum()
+        total_piezas_vendidas = df_v["cantidad"].sum()
+
+        c1, c2 = st.columns(2)
+        c1.metric("Ingresos Totales por Ventas", f"${monto_total_ventas:,.2f}")
+        c2.metric("Total de Prenda Vendidas", f"{total_piezas_vendidas} pcs")
+
+        st.divider()
+        st.subheader("Ventas Recientes")
+        st.dataframe(df_v[["created_at", "detalle", "cantidad", "monto"]], use_container_width=True)
+    else:
+        st.info("Sin registros de ventas suficientes para generar reporte.")
+
+# ============================================================
+# 7. CONFIGURACIÓN DE PRODUCTOS
+# ============================================================
+elif seccion == "⚙️ Configuración de Productos":
+    st.header("⚙️ Configuración de Productos")
+    st.caption("Parámetros base de costos, precios y márgenes por combinación de Modelo y Tela.")
+    st.divider()
+
+    cfgs = supabase.table("configuracion_productos").select("*").execute().data
+    if cfgs:
+        st.dataframe(pd.DataFrame(cfgs), use_container_width=True)
+    else:
+        st.info("No hay parámetros configurados actualmente.")
