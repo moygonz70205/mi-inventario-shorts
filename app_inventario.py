@@ -64,7 +64,7 @@ if seccion == "🏠 Panel de Control Operativo":
         st.dataframe(pd.DataFrame(pocos_prod)[["modelo", "tela", "color", "talla", "cantidad"]], use_container_width=True)
 
 # ============================================================
-# 2. INVENTARIO Y ENTRADA DE INVENTARIO (Puntos 1, 2, 3, 4, 5, 10)
+# 2. INVENTARIO Y ENTRADA DE INVENTARIO
 # ============================================================
 elif seccion == "📦 Inventario y Entrada de Inventario":
     st.header("📦 Gestión de Almacén e Ingresos")
@@ -85,10 +85,10 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
             df_raw["color"] = df_raw["color"].astype(str).str.strip().str.title()
             df_raw["talla"] = df_raw["talla"].astype(str).str.strip().str.upper()
 
-            # Punto 4: Agrupamiento automático para evitar duplicados en pantalla
+            # Agrupamiento automático para evitar duplicados en pantalla
             df_grouped = df_raw.groupby(["modelo", "tela", "color", "talla", "precio"], as_index=False)["cantidad"].sum()
 
-            # Punto 1: Totales por Categoría / Tipo de Producto (Short, Playeras, Pants, etc.)
+            # Totales por Categoría / Tipo de Producto
             st.markdown("### 📊 Totales Globales por Tipo de Producto")
             totales_modelo = df_grouped.groupby("modelo")["cantidad"].sum()
             
@@ -120,7 +120,7 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
                 ]
             st.dataframe(df_display, use_container_width=True)
 
-            # Punto 5: Ajuste de Stock simplificado e intuitivo
+            # Ajuste de Stock simplificado
             st.divider()
             st.subheader("🛠️ Ajuste Directo de Stock")
             st.caption("Modifica únicamente la cantidad final en caso de mermas o recuentos de almacén.")
@@ -139,7 +139,7 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
                 if col_aj2.button("💾 Guardar Ajuste de Stock", type="primary"):
                     supabase.table("inventario_ropa").update({"cantidad": nueva_cant}).eq("id", reg_sel["id"]).execute()
                     
-                    st.success(f" Stock actualizado. {reg_sel['modelo']} {reg_sel['color']} ({reg_sel['talla']}): Antes {reg_sel['cantidad']} pcs ➔ Ahora {nueva_cant} pcs.")
+                    st.success(f"Stock actualizado. {reg_sel['modelo']} {reg_sel['color']} ({reg_sel['talla']}): Antes {reg_sel['cantidad']} pcs ➔ Ahora {nueva_cant} pcs.")
                     time.sleep(2.0)
                     st.rerun()
         else:
@@ -151,7 +151,6 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
         datos_inv_exist = supabase.table("inventario_ropa").select("*").execute().data
         configs = supabase.table("configuracion_productos").select("*").execute().data
 
-        # Punto 2: Selección entre mercancía existente y dar de alta un producto nuevo
         modo_ingreso = st.radio("Tipo de Ingreso", ["Añadir a Variantes Existentes", "➕ Registrar Nueva Variante / Producto Nuevo"], horizontal=True)
 
         if modo_ingreso == "Añadir a Variantes Existentes" and datos_inv_exist:
@@ -172,7 +171,6 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
             list_col = sorted(df_tel["color"].unique())
             e_color = c3.selectbox("Color", list_col)
 
-            # Punto 3: Preservar la talla seleccionada si el usuario la cambia
             if "talla_entrada_fija" not in st.session_state:
                 st.session_state["talla_entrada_fija"] = "CH"
 
@@ -217,8 +215,7 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
                     "producto_id": prod_id
                 }).execute()
 
-                # Punto 10: Notificación/Globo descriptivo de 2 segundos
-                st.success(f" Inventario Actualizado | Stock actualizado: Tenías {cant_anterior} pcs + Agregaste {e_cant} pcs = Total {cant_nueva} pcs ({e_modelo} {e_tela} {e_color} {e_talla}). Movimiento Exitoso.")
+                st.success(f"Inventario Actualizado | Stock actualizado: Tenías {cant_anterior} pcs + Agregaste {e_cant} pcs = Total {cant_nueva} pcs ({e_modelo} {e_tela} {e_color} {e_talla}). Movimiento Exitoso.")
                 st.balloons()
                 time.sleep(2.0)
                 st.rerun()
@@ -236,8 +233,7 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
                 n_precio = st.number_input("Precio de Venta Unitario ($)", min_value=0.0, value=65.0)
                 n_costo = st.number_input("Costo de Fabricación Unitario ($)", min_value=0.0, value=30.0)
 
-                if st.form_submit_button(" Registrar Nueva Entrada y Crear Producto"):
-                    # Normalizar cadenas
+                if st.form_submit_button("Registrar Nueva Entrada y Crear Producto"):
                     n_modelo_clean = n_modelo.strip().title()
                     n_tela_clean = n_tela.strip().title()
                     n_color_clean = n_color.strip().title()
@@ -259,14 +255,13 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
                         "producto_id": prod_id
                     }).execute()
 
-                    # Punto 10: Globo visual informativo
-                    st.success(f" Inventario Actualizado | Stock inicial: {n_cant} pcs agregadas de {n_modelo_clean} {n_tela_clean} ({n_color_clean} / {n_talla_clean}). Movimiento Exitoso.")
+                    st.success(f"Inventario Actualizado | Stock inicial: {n_cant} pcs agregadas de {n_modelo_clean} {n_tela_clean} ({n_color_clean} / {n_talla_clean}). Movimiento Exitoso.")
                     st.balloons()
                     time.sleep(2.0)
                     st.rerun()
 
 # ============================================================
-# 3. MÓDULO DE VENTAS (Puntos 3, 6, 10)
+# 3. MÓDULO DE VENTAS
 # ============================================================
 elif seccion == "💰 Módulo de Ventas":
     st.header("💰 Módulo de Ventas")
@@ -277,7 +272,6 @@ elif seccion == "💰 Módulo de Ventas":
     configs = supabase.table("configuracion_productos").select("*").execute().data
 
     if datos:
-        # Normalizar datos para evitar duplicados en listas de selección
         for d in datos:
             d["modelo"] = str(d["modelo"]).strip().title()
             d["tela"] = str(d["tela"]).strip().title()
@@ -298,7 +292,6 @@ elif seccion == "💰 Módulo de Ventas":
         st.subheader("Selecciona Talla")
         tallas_disp = sorted(list(set([d["talla"] for d in datos if d["modelo"] == modelo and d["tela"] == tela and d["color"] == color])))
 
-        # Punto 3 y 6: Mantener la talla previa si existe en el nuevo color, o cambiar automáticamente si no existe
         if "talla_venta_fija" not in st.session_state:
             st.session_state["talla_venta_fija"] = tallas_disp[0] if tallas_disp else "CH"
 
@@ -311,7 +304,6 @@ elif seccion == "💰 Módulo de Ventas":
         talla = st.radio("Talla Disponible", tallas_disp, index=talla_act_idx, horizontal=True, key="radio_talla_vent")
         st.session_state["talla_venta_fija"] = talla
 
-        # Agrupar registros duplicados exactos en caso de que existan en la base
         prods_coincidentes = [p for p in datos if p["modelo"]==modelo and p["tela"]==tela and p["color"]==color and p["talla"]==talla]
         
         if prods_coincidentes:
@@ -322,7 +314,6 @@ elif seccion == "💰 Módulo de Ventas":
             st.divider()
             col_info1, col_info2 = st.columns(2)
             
-            # Punto 6: Indicador de semáforo de Stock
             if cant_total_stock <= 0:
                 col_info1.error("❌ **PRODUCTO AGOTADO** - Stock: 0 piezas")
             elif cant_total_stock <= 3:
@@ -354,7 +345,6 @@ elif seccion == "💰 Módulo de Ventas":
                 st.write(f"**Desglose estimado:** Total: **${monto_total:,.2f}** | Capital + Crecimiento: **${c_reinv_total:,.2f}** | Rendimiento: **${c_libre:,.2f}** | Reserva: **${c_emerg:,.2f}**")
 
                 if st.button("🛒 Confirmar y Registrar Venta", type="primary"):
-                    # Descontar stock (atendiendo duplicados si existían)
                     cant_pendiente = cant_vender
                     for p_sub in prods_coincidentes:
                         if cant_pendiente <= 0:
@@ -370,5 +360,20 @@ elif seccion == "💰 Módulo de Ventas":
                         e_prev = f_curr.get("dinero_emergencia", 0.0) or 0.0
 
                         supabase.table("finanzas").update({
-                            "dinero_reinversion": f_curr["dinero_reinversion"] + c_reinv_total,
-                   
+                            "dinero_reinversion": f_curr.get("dinero_reinversion", 0.0) + c_reinv_total,
+                            "dinero_libre": f_curr.get("dinero_libre", 0.0) + c_libre,
+                            "dinero_emergencia": e_prev + c_emerg,
+                            "utilidad_reinversion_acumulada": u_acum_prev + utilidad_crecimiento
+                        }).eq("id", 1).execute()
+
+                    supabase.table("historial").insert({
+                        "tipo": "VENTA",
+                        "detalle": f"Venta: {modelo} {tela} {color} {talla}",
+                        "cantidad": cant_vender,
+                        "monto": monto_total,
+                        "costo_unitario": costo_fab,
+                        "precio_unitario": precio_unitario,
+                        "producto_id": prod_principal["id"]
+                    }).execute()
+
+                    st.success(f"Venta Registrada con Éxito | Vendidas: {cant_vender}
