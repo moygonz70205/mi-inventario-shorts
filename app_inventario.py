@@ -243,10 +243,12 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
         else:
             st.info("No hay categorías creadas. Utiliza la pestaña 'Crear Nuevo Producto / Variante' para el primer registro.")
 
-    # ---------------- TAB 3: CREAR NUEVA VARIANTE O PRODUCTO ----------------
+        # ---------------- TAB 3: CREAR NUEVA VARIANTE O PRODUCTO (CORREGIDO) ----------------
     with tab3:
         st.subheader("Registrar Nueva Prenda o Categoría")
         st.caption("Escribe los datos manualmente. La aplicación formateará los textos automáticamente para evitar celdas duplicadas.")
+
+        configs = supabase.table("configuracion_productos").select("*").execute().data
 
         with st.form("form_nuevo_prod"):
             cn1, cn2 = st.columns(2)
@@ -257,7 +259,17 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
             
             cn3, cn4 = st.columns(2)
             n_cant = cn3.number_input("Cantidad Inicial de Piezas", min_value=1, value=1)
-            n_precio = cn4.number_input("Precio de Venta ($)", min_value=0.0, value=65.0)
+            
+            # Buscar si ya existe un costo de fabricación para ese modelo y tela en configuración
+            m_clean_prev = estandarizar_texto(n_modelo)
+            t_clean_prev = estandarizar_texto(n_tela)
+            cfg_item = next((c for c in configs if estandarizar_texto(c.get("tela", "")) == t_clean_prev and estandarizar_texto(c.get("modelo", "")) == m_clean_prev), None) if configs else None
+            
+            def_costo = cfg_item.get("costo_fabricacion", 30.0) if cfg_item else 30.0
+            def_precio = cfg_item.get("precio_venta", 65.0) if cfg_item else 65.0
+
+            n_costo = cn4.number_input("Costo de Fabricación Unitario ($)", min_value=0.0, value=float(def_costo))
+            n_precio = cn4.number_input("Precio de Venta Unitario ($)", min_value=0.0, value=float(def_precio))
 
             if st.form_submit_button("✨ Crear y Registrar en Almacén"):
                 m_clean = estandarizar_texto(n_modelo)
@@ -278,11 +290,15 @@ elif seccion == "📦 Inventario y Entrada de Inventario":
                     }).execute()
                     p_id = ins.data[0]["id"] if ins.data else None
 
+                # REGISTRO EN HISTORIAL CORREGIDO (Incluye costo_unitario y monto real)
+                monto_total_entrada = n_cant * n_costo
+
                 supabase.table("historial").insert({
                     "tipo": "ENTRADA",
                     "detalle": f"Alta Nueva: {m_clean} {t_clean} {c_clean} {z_clean}",
                     "cantidad": n_cant,
-                    "monto": 0.0,
+                    "monto": monto_total_entrada,
+                    "costo_unitario": n_costo,
                     "precio_unitario": n_precio,
                     "producto_id": p_id
                 }).execute()
